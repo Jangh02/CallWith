@@ -13,6 +13,7 @@
     --text: #eef2f6;
     --muted: #8b9aab;
     --accent: #3ddc97;
+    --mine: #1f6b4c;
     --danger: #ff5d5d;
   }
   * { box-sizing: border-box; }
@@ -20,95 +21,152 @@
   body {
     background: var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Noto Sans JP", "Noto Sans TC", sans-serif;
     display: flex;
     justify-content: center;
-    padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+    padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
+    overflow: hidden;
   }
-  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; min-height: 100%; }
-  header { padding: 36px 0 20px; }
+  main { width: 100%; max-width: 480px; height: 100%; display: flex; flex-direction: column; }
+  button { font: inherit; border: 0; border-radius: 14px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+
+  /* ---------- 시작 화면 ---------- */
+  #setup { overflow-y: auto; padding-bottom: 20px; }
+  #setup[hidden], #call[hidden] { display: none; }
+  header { padding: 32px 0 18px; }
   h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.02em; }
   .sub { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
-
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-  input {
-    width: 100%; font-size: 18px; padding: 14px 16px; border-radius: 12px;
+  label { display: block; font-size: 13px; color: var(--muted); margin: 16px 0 8px; }
+  label:first-child { margin-top: 0; }
+  input, select {
+    width: 100%; font: inherit; font-size: 17px; padding: 13px 14px; border-radius: 12px;
     border: 1px solid var(--line); background: var(--bg); color: var(--text); outline: none;
+    -webkit-appearance: none; appearance: none;
   }
-  input:focus { border-color: var(--accent); }
-  .hint { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 12px 0 0; }
-
-  button {
-    font: inherit; border: 0; border-radius: 14px; cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
+  input:focus, select:focus { border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 10px 0 0; }
   .primary {
-    width: 100%; margin-top: 18px; padding: 16px; font-size: 17px; font-weight: 600;
+    width: 100%; margin-top: 20px; padding: 16px; font-size: 17px; font-weight: 600;
     background: var(--accent); color: #062014;
   }
   .primary:active { transform: scale(0.98); }
+  #err { color: var(--danger); font-size: 14px; line-height: 1.5; margin: 12px 0 0; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 20px 0; line-height: 1.5; }
 
-  #call { flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 30px; }
-  #call[hidden], #setup[hidden] { display: none; }
-  .orb {
-    width: 150px; height: 150px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #4af0a8, #1d8f63 70%);
-    box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.5);
-    display: grid; place-items: center; font-size: 56px;
+  /* ---------- 통화 화면 ---------- */
+  #call { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .topbar {
+    display: flex; align-items: center; gap: 12px; padding: 14px 4px 12px;
+    border-bottom: 1px solid var(--line);
   }
-  .orb.waiting { background: radial-gradient(circle at 35% 30%, #5b6b7c, #2a3644 70%); animation: pulse 1.8s infinite; }
-  .orb.live { animation: none; }
-  @keyframes pulse {
-    0% { box-shadow: 0 0 0 0 rgba(139, 154, 171, 0.45); }
-    70% { box-shadow: 0 0 0 28px rgba(139, 154, 171, 0); }
-    100% { box-shadow: 0 0 0 0 rgba(139, 154, 171, 0); }
-  }
-  #status { margin-top: 28px; font-size: 18px; font-weight: 600; text-align: center; }
-  #detail { margin-top: 8px; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.5; min-height: 21px; }
-  #timer { margin-top: 14px; font-size: 32px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
-  #timer[hidden] { display: none; }
-  #net { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 18px; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.waiting { animation: blink 1.4s infinite; }
+  .dot.live { background: var(--accent); }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  .topinfo { flex: 1; min-width: 0; }
+  #status { font-size: 16px; font-weight: 600; }
+  #detail { color: var(--muted); font-size: 12.5px; line-height: 1.45; margin-top: 2px; }
+  #detail:empty { display: none; }
+  .topright { text-align: right; flex: none; }
+  #timer { font-size: 16px; font-variant-numeric: tabular-nums; }
+  #net { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
 
-  .controls { margin-top: auto; padding: 30px 0 40px; display: flex; gap: 28px; justify-content: center; }
+  #chat {
+    flex: 1; min-height: 0; overflow-y: auto; padding: 16px 2px;
+    display: flex; flex-direction: column; gap: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .empty { margin: auto; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.6; padding: 0 20px; }
+  .row { display: flex; flex-direction: column; max-width: 84%; }
+  .row.theirs { align-self: flex-start; align-items: flex-start; }
+  .row.mine { align-self: flex-end; align-items: flex-end; }
+  .bubble {
+    border-radius: 16px; padding: 10px 14px; line-height: 1.5; word-break: break-word;
+    background: var(--card); border: 1px solid var(--line);
+  }
+  .mine .bubble { background: var(--mine); border-color: var(--mine); }
+  .theirs .bubble { border-top-left-radius: 6px; }
+  .mine .bubble { border-top-right-radius: 6px; }
+  .orig { font-size: 16px; }
+  .tr {
+    font-size: 15px; color: #c9d4df; margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.14);
+  }
+  .mine .tr { color: #d6f5e7; }
+  .tr:empty { display: none; }
+  .interim .bubble { opacity: 0.75; }
+  .interim .orig::after { content: " …"; color: var(--muted); }
+  .time { font-size: 11px; color: var(--muted); margin: 4px 4px 0; }
+  .notice {
+    align-self: center; font-size: 12.5px; color: var(--muted); background: var(--card);
+    border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; text-align: center; max-width: 92%;
+  }
+
+  #unlock { margin: 0 auto 8px; padding: 10px 16px; background: #f5c542; color: #2a2000; font-weight: 600; font-size: 14px; }
+  #unlock[hidden] { display: none; }
+
+  .controls {
+    display: flex; gap: 22px; justify-content: center; align-items: flex-start;
+    padding: 12px 0 18px; border-top: 1px solid var(--line);
+  }
+  .ctl { display: flex; flex-direction: column; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); width: 72px; }
   .round {
-    width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center;
+    width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center;
     background: var(--card); border: 1px solid var(--line); color: var(--text);
   }
-  .round svg { width: 28px; height: 28px; }
+  .round svg { width: 26px; height: 26px; }
   .round.on { background: var(--text); color: var(--bg); }
   .round.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-  .ctl { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-
-  #unlock { margin-top: 20px; padding: 12px 18px; background: #f5c542; color: #2a2000; font-weight: 600; }
-  #unlock[hidden] { display: none; }
-  #err { color: var(--danger); font-size: 14px; line-height: 1.5; margin-top: 14px; min-height: 1px; }
-  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0; margin-top: auto; }
+  .round.cc { font-weight: 700; font-size: 15px; }
+  .round.cc.active { background: var(--accent); border-color: var(--accent); color: #062014; }
 </style>
 </head>
 <body>
 <main>
+  <!-- ============ 시작 화면 ============ -->
   <section id="setup">
     <header>
       <h1>우리 둘만의 통화</h1>
-      <p class="sub">둘이 정한 암호를 똑같이 입력하면 서로 연결돼요.</p>
+      <p class="sub">둘이 정한 암호를 똑같이 입력하면 서로 연결돼요.<br>말하는 내용이 원문과 번역으로 함께 보여요.</p>
     </header>
     <div class="card">
+      <label for="lang">내가 말하는 언어</label>
+      <select id="lang">
+        <option value="ko-KR">한국어</option>
+        <option value="ja-JP">日本語 (일본어)</option>
+        <option value="zh-TW">中文(繁體) (대만 중국어)</option>
+        <option value="en-US">English (영어)</option>
+      </select>
+
       <label for="code">둘이 정한 암호</label>
       <input id="code" placeholder="예: 우리만아는말1234" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 두 사람이 각자 휴대폰에서 이 페이지를 열고, 같은 암호를 넣은 뒤 아래 버튼을 누르면 돼요.</p>
+      <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 상대방은 자기 언어를 고르고 같은 암호를 넣으면 돼요.</p>
+
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer>통화 소리는 두 휴대폰 사이에서 바로 오가고 저장되지 않아요.</footer>
+    <footer>통화 소리는 저장되지 않아요.<br>자막을 켜면 말한 문장이 번역을 위해 Google 번역으로 보내져요.</footer>
   </section>
 
+  <!-- ============ 통화 화면 ============ -->
   <section id="call" hidden>
-    <div id="orb" class="orb waiting">📞</div>
-    <div id="status">연결 준비 중…</div>
-    <div id="detail"></div>
-    <div id="timer" hidden>00:00</div>
-    <div id="net"></div>
+    <div class="topbar">
+      <div id="dot" class="dot waiting"></div>
+      <div class="topinfo">
+        <div id="status">연결 준비 중…</div>
+        <div id="detail"></div>
+      </div>
+      <div class="topright">
+        <div id="timer">00:00</div>
+        <div id="net"></div>
+      </div>
+    </div>
+
+    <div id="chat">
+      <div id="empty" class="empty">연결되면 서로 말하는 내용이<br>여기에 원문과 번역으로 나타나요.</div>
+    </div>
+
     <button id="unlock" hidden>🔊 소리가 안 들리면 여기를 누르세요</button>
 
     <div class="controls">
@@ -117,6 +175,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
         </button>
         <span id="muteLabel">음소거</span>
+      </div>
+      <div class="ctl">
+        <button id="cc" class="round cc" aria-label="자막">자막</button>
+        <span id="ccLabel">자막 꺼짐</span>
       </div>
       <div class="ctl">
         <button id="hangup" class="round danger" aria-label="끊기">
@@ -133,11 +195,13 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* =====================================================================
+   번역 키 (Google Cloud Translation API 키)
+   받은 키를 아래 따옴표 사이에 넣으세요. 비어 있으면 원문만 보여요.
+   ===================================================================== */
+const TRANSLATE_KEY = "";
+
+/* =====================================================================
    중계 서버(TURN) 설정
-   중계 서버 업체에서 받은 정보를 아래 [ ] 사이에 넣으세요.
-   예)
-   { urls: "turn:서버주소:3478", username: "아이디", credential: "비밀번호" },
-   { urls: "turn:서버주소:443?transport=tcp", username: "아이디", credential: "비밀번호" },
    ===================================================================== */
 const EXTRA_ICE_SERVERS = [
   { urls: "stun:stun.relay.metered.ca:80" },
@@ -152,39 +216,35 @@ const ICE_SERVERS = [
   ...EXTRA_ICE_SERVERS,
 ];
 
+/* 음성인식 언어 → 번역 언어 코드 */
+const TR_CODE = { "ko-KR": "ko", "ja-JP": "ja", "zh-TW": "zh-TW", "en-US": "en" };
+const LANG_NAME = { "ko-KR": "한국어", "ja-JP": "일본어", "zh-TW": "중국어(번체)", "en-US": "영어" };
+
 const $ = (id) => document.getElementById(id);
 const els = {
-  setup: $("setup"), call: $("call"), code: $("code"), join: $("join"), err: $("err"),
-  orb: $("orb"), status: $("status"), detail: $("detail"), timer: $("timer"), net: $("net"),
-  mute: $("mute"), muteLabel: $("muteLabel"), hangup: $("hangup"),
+  setup: $("setup"), call: $("call"), code: $("code"), lang: $("lang"), join: $("join"), err: $("err"),
+  dot: $("dot"), status: $("status"), detail: $("detail"), timer: $("timer"), net: $("net"),
+  chat: $("chat"), empty: $("empty"),
+  mute: $("mute"), muteLabel: $("muteLabel"), cc: $("cc"), ccLabel: $("ccLabel"), hangup: $("hangup"),
   unlock: $("unlock"), remote: $("remote"),
 };
 
-let peer = null;          // 내 PeerJS 연결
-let role = null;          // "a" = 먼저 들어온 사람(기다림), "b" = 나중에 들어온 사람(전화 검)
-let base = null;          // 암호로 만든 방 이름
-let localStream = null;   // 내 마이크
-let pendingCall = null;   // 연결 시도 중인 통화
-let activeCall = null;    // 연결된 통화
-let redialTimer = null;
-let clockTimer = null;
-let slowTimer = null;
-let startedAt = 0;
-let muted = false;
-let wakeLock = null;
-let active = false;       // 통화 화면에 있는지
+let peer = null, role = null, base = null, localStream = null;
+let pendingCall = null, activeCall = null, dataConn = null;
+let redialTimer = null, clockTimer = null, slowTimer = null, statsTimer = null;
+let startedAt = 0, muted = false, wakeLock = null, active = false;
+let myLang = "ko-KR", partnerLang = null;
 
-try { els.code.value = localStorage.getItem("duocall-code") || ""; } catch (e) {}
+try {
+  els.code.value = localStorage.getItem("duocall-code") || "";
+  const savedLang = localStorage.getItem("duocall-lang");
+  if (savedLang && TR_CODE[savedLang]) els.lang.value = savedLang;
+} catch (e) {}
 
-function setStatus(main, detail = "") {
-  els.status.textContent = main;
-  els.detail.textContent = detail;
-}
+function setStatus(main, detail = "") { els.status.textContent = main; els.detail.textContent = detail; }
 function setLive(live) {
-  els.orb.classList.toggle("waiting", !live);
-  els.orb.classList.toggle("live", live);
-  els.orb.textContent = live ? "🎧" : "📞";
-  els.timer.hidden = !live;
+  els.dot.classList.toggle("waiting", !live);
+  els.dot.classList.toggle("live", live);
 }
 function showError(msg) { els.err.textContent = msg; }
 
@@ -194,16 +254,17 @@ async function hashCode(text) {
   return "duocall-" + [...new Uint8Array(buf)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-/* ---------- 시작 ---------- */
+/* =====================================================================
+   시작
+   ===================================================================== */
 els.join.addEventListener("click", async () => {
   showError("");
   const code = els.code.value.trim();
+  myLang = els.lang.value;
   if (code.length < 4) { showError("암호를 4글자 이상 입력해 주세요."); return; }
   if (!window.Peer) { showError("연결 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요."); return; }
-  if (!navigator.mediaDevices || !window.isSecureContext) {
-    showError("이 페이지는 https:// 주소에서만 마이크를 쓸 수 있어요."); return;
-  }
-  try { localStorage.setItem("duocall-code", code); } catch (e) {}
+  if (!navigator.mediaDevices || !window.isSecureContext) { showError("이 페이지는 https:// 주소에서만 마이크를 쓸 수 있어요."); return; }
+  try { localStorage.setItem("duocall-code", code); localStorage.setItem("duocall-lang", myLang); } catch (e) {}
 
   els.join.disabled = true;
   try {
@@ -213,12 +274,11 @@ els.join.addEventListener("click", async () => {
     });
   } catch (e) {
     els.join.disabled = false;
-    showError("마이크 권한이 필요해요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.");
+    showError("마이크 권한이 필요해요. Safari 주소창의 '가가' → 웹사이트 설정 → 마이크를 허용해 주세요.");
     return;
   }
   els.join.disabled = false;
 
-  // iOS에서 나중에 소리가 나오도록 사용자 터치 순간에 오디오를 깨워 둠
   els.remote.muted = false;
   els.remote.play().catch(() => {});
 
@@ -232,7 +292,9 @@ els.join.addEventListener("click", async () => {
   startPeer("a");
 });
 
-/* ---------- PeerJS ---------- */
+/* =====================================================================
+   PeerJS 연결
+   ===================================================================== */
 function startPeer(r) {
   role = r;
   const p = new Peer(`${base}-${r}`, { config: { iceServers: ICE_SERVERS }, debug: 1 });
@@ -251,16 +313,19 @@ function startPeer(r) {
 
   p.on("call", (call) => {
     if (peer !== p) return;
-    // 새로 걸려온 전화가 있으면 그걸로 교체 (상대가 다시 들어온 경우)
     if (activeCall && activeCall !== call) { const old = activeCall; activeCall = null; old.close(); }
-    if (pendingCall && pendingCall !== call) { pendingCall.close(); }
+    if (pendingCall && pendingCall !== call) pendingCall.close();
     call.answer(localStream);
     watchCall(call);
   });
 
+  p.on("connection", (conn) => {
+    if (peer !== p) return;
+    setupData(conn);
+  });
+
   p.on("disconnected", () => {
     if (peer !== p || p.destroyed) return;
-    // 연결 도우미 서버와만 끊긴 것 — 통화 자체는 계속될 수 있음
     setTimeout(() => { if (peer === p && !p.destroyed && p.disconnected) p.reconnect(); }, 1500);
   });
 
@@ -268,17 +333,15 @@ function startPeer(r) {
     if (peer !== p) return;
     const t = err && err.type;
     if (t === "unavailable-id") {
-      if (role === "a") {           // 상대가 먼저 들어와 있음 → 내가 전화를 거는 쪽
-        p.destroy();
-        startPeer("b");
-      } else {                      // 두 자리 모두 차 있음 (이전 접속이 아직 남아 있을 수 있음)
+      if (role === "a") { p.destroy(); startPeer("b"); }
+      else {
         p.destroy();
         setStatus("잠시 후 다시 연결할게요…", "방금 접속했던 기록이 아직 남아 있어요. 몇 초 뒤 자동으로 다시 시도해요.");
         setTimeout(() => { if (active && peer === p) startPeer("a"); }, 6000);
       }
       return;
     }
-    if (t === "peer-unavailable") { // 상대가 아직 없음
+    if (t === "peer-unavailable") {
       pendingCall = null;
       if (!activeCall) setStatus("상대방을 기다리는 중…", "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.");
       return;
@@ -303,7 +366,6 @@ function dial() {
   const call = peer.call(otherId(), localStream);
   if (call) watchCall(call);
 }
-
 function startRedial() {
   clearInterval(redialTimer);
   redialTimer = setInterval(() => { if (role === "b" && !activeCall) dial(); }, 4000);
@@ -314,12 +376,11 @@ function watchCall(call) {
   clearTimeout(slowTimer);
   slowTimer = setTimeout(() => {
     if (pendingCall === call && !activeCall) {
-      setStatus("연결이 오래 걸리고 있어요…", "둘 중 한 명이 데이터(LTE/5G)라면 연결이 막힐 수 있어요. 와이파이로 바꿔서 다시 해 보세요.");
+      setStatus("연결이 오래 걸리고 있어요…", "인터넷 연결을 확인하고 잠시 기다려 주세요.");
     }
   }, 15000);
 
-  let live = false;       // 소리 길이 실제로 열렸는지
-  let everLive = false;
+  let live = false, everLive = false;
 
   const goLive = () => {
     if (live || activeCall !== call) return;
@@ -331,13 +392,17 @@ function watchCall(call) {
     if (!clockTimer) startClock();
     lowLatency(call.peerConnection);
     startStats(call);
+    // 자막용 데이터 연결은 전화를 건 쪽(b)이 엶
+    if (role === "b" && (!dataConn || !dataConn.open)) {
+      setupData(peer.connect(otherId(), { reliable: true }));
+    }
+    if (ccWanted) startRecognition();
   };
 
   call.on("stream", (stream) => {
     if (pendingCall === call) pendingCall = null;
     activeCall = call;
     els.remote.srcObject = stream;
-    // 상대를 찾았을 뿐, 소리 길은 아직 — 실제 연결될 때까지 기다림
     setStatus("상대방을 찾았어요. 소리 연결 중…");
     const s = call.peerConnection && call.peerConnection.iceConnectionState;
     if (s === "connected" || s === "completed") goLive();
@@ -346,7 +411,6 @@ function watchCall(call) {
   call.on("close", () => endCall(call, "상대방이 통화를 끊었어요"));
   call.on("error", () => endCall(call, "통화 연결이 끊겼어요"));
 
-  // 실제 연결 상태 감시
   const pc = call.peerConnection;
   if (pc) {
     pc.addEventListener("iceconnectionstatechange", () => {
@@ -356,33 +420,269 @@ function watchCall(call) {
       } else if (s === "disconnected" && live && activeCall === call) {
         setStatus("연결이 불안정해요…", "잠시 기다리면 다시 이어질 수 있어요.");
       } else if (s === "failed") {
-        const hadTurn = EXTRA_ICE_SERVERS.length > 0;
-        if (!activeCall) activeCall = call; // endCall이 정리하도록
+        if (!activeCall) activeCall = call;
         endCall(call, everLive ? "통화 연결이 끊겼어요" : "소리 연결에 실패했어요");
-        if (!everLive) {
-          els.detail.textContent = hadTurn
-            ? "중계 서버 정보가 맞는지 확인해 주세요. 잠시 후 자동으로 다시 시도해요."
-            : "두 기기가 직접 연결되지 못했어요. 중계 서버(TURN)를 설정하면 해결돼요.";
-        }
+        if (!everLive) els.detail.textContent = "잠시 후 자동으로 다시 시도해요.";
         call.close();
       }
     });
   }
 }
 
-/* ---------- 지연 줄이기 + 연결 정보 표시 ---------- */
+function endCall(call, message) {
+  if (pendingCall === call) pendingCall = null;
+  if (activeCall !== call) return;
+  activeCall = null;
+  stopRecognition();
+  stopStats();
+  stopClock();
+  els.remote.srcObject = null;
+  els.unlock.hidden = true;
+  setLive(false);
+  if (!active) return;
+  setStatus(message, "상대방이 다시 들어오면 자동으로 연결돼요.");
+}
+
+/* =====================================================================
+   자막 데이터 주고받기
+   ===================================================================== */
+function setupData(conn) {
+  if (!conn) return;
+  if (dataConn && dataConn !== conn) { try { dataConn.close(); } catch (e) {} }
+  dataConn = conn;
+  conn.on("open", () => { if (dataConn === conn) sendData({ t: "hello", lang: myLang }); });
+  conn.on("data", (msg) => { if (dataConn === conn) onData(msg); });
+  conn.on("close", () => { if (dataConn === conn) dataConn = null; });
+  conn.on("error", () => {});
+}
+function sendData(msg) {
+  if (dataConn && dataConn.open) { try { dataConn.send(msg); } catch (e) {} }
+}
+
+function onData(msg) {
+  if (!msg || typeof msg !== "object") return;
+  if (msg.t === "hello") {
+    const first = partnerLang === null;
+    if (TR_CODE[msg.lang]) partnerLang = msg.lang;
+    if (first) {
+      sendData({ t: "hello", lang: myLang });
+      addNotice(`상대방 언어: ${LANG_NAME[partnerLang] || "알 수 없음"}`);
+    }
+    return;
+  }
+  if (msg.t === "line" && typeof msg.id === "string") {
+    renderLine({
+      id: "p-" + msg.id,
+      mine: false,
+      text: String(msg.text || "").slice(0, 2000),
+      tr: typeof msg.tr === "string" ? msg.tr.slice(0, 2000) : null,
+      final: !!msg.final,
+    });
+  }
+}
+
+/* =====================================================================
+   말풍선 그리기
+   ===================================================================== */
+const lines = new Map();   // id → { row, orig, tr, time }
+
+function nearBottom() { return els.chat.scrollHeight - els.chat.scrollTop - els.chat.clientHeight < 80; }
+function scrollDown() { els.chat.scrollTop = els.chat.scrollHeight; }
+
+function renderLine({ id, mine, text, tr, final }) {
+  if (els.empty) { els.empty.remove(); els.empty = null; }
+  const stick = nearBottom();
+  let L = lines.get(id);
+  if (!L) {
+    const row = document.createElement("div");
+    row.className = "row " + (mine ? "mine" : "theirs");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    const orig = document.createElement("div"); orig.className = "orig";
+    const trEl = document.createElement("div"); trEl.className = "tr";
+    bubble.append(orig, trEl);
+    const time = document.createElement("div"); time.className = "time";
+    row.append(bubble, time);
+    els.chat.append(row);
+    L = { row, orig, tr: trEl, time, final: false };
+    lines.set(id, L);
+  }
+  if (L.final && !final) return;          // 이미 확정된 문장은 덮어쓰지 않음
+  L.orig.textContent = text;
+  if (tr !== null && tr !== undefined) L.tr.textContent = tr;
+  L.row.classList.toggle("interim", !final);
+  if (final) {
+    L.final = true;
+    const d = new Date();
+    L.time.textContent = `${d.getHours()}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+  if (stick || mine) scrollDown();
+}
+
+function addNotice(text) {
+  if (els.empty) { els.empty.remove(); els.empty = null; }
+  const n = document.createElement("div");
+  n.className = "notice";
+  n.textContent = text;
+  els.chat.append(n);
+  scrollDown();
+}
+
+/* =====================================================================
+   번역
+   ===================================================================== */
+let keyWarned = false;
+async function translate(text, fromLang, toLang) {
+  if (!text || !toLang || fromLang === toLang) return null;
+  if (!TRANSLATE_KEY) {
+    if (!keyWarned) { keyWarned = true; addNotice("번역 키가 아직 없어서 원문만 보여요."); }
+    return null;
+  }
+  try {
+    const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(TRANSLATE_KEY)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ q: text, source: TR_CODE[fromLang], target: TR_CODE[toLang], format: "text" }),
+    });
+    if (!res.ok) {
+      if (!keyWarned) { keyWarned = true; addNotice(`번역 오류 (${res.status}) — 번역 키 설정을 확인해 주세요.`); }
+      return null;
+    }
+    const data = await res.json();
+    return data && data.data && data.data.translations && data.data.translations[0]
+      ? data.data.translations[0].translatedText : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/* =====================================================================
+   내 말 받아쓰기 (음성인식)
+   ===================================================================== */
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let rec = null, recRunning = false, ccWanted = true;
+let lineSeq = 0, curId = null, curText = "", curTr = null;
+let lastInterimTr = 0, interimTrBusy = false, restartTimer = null, recFailCount = 0;
+const myTag = Math.random().toString(36).slice(2, 7);
+
+function updateCcUi() {
+  els.cc.classList.toggle("active", ccWanted && recRunning);
+  els.ccLabel.textContent = !SR ? "자막 미지원" : ccWanted ? (recRunning ? "자막 켜짐" : "자막 준비") : "자막 꺼짐";
+}
+
+function startRecognition() {
+  if (!SR) { addNotice("이 브라우저는 받아쓰기를 지원하지 않아요. 아이폰은 Safari, 안드로이드는 Chrome을 써 주세요."); ccWanted = false; updateCcUi(); return; }
+  if (!ccWanted || muted || !activeCall || recRunning) return;
+  try {
+    rec = new SR();
+    rec.lang = myLang;
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.maxAlternatives = 1;
+
+    rec.onstart = () => { recRunning = true; recFailCount = 0; updateCcUi(); };
+
+    rec.onresult = (ev) => {
+      let interim = "";
+      for (let i = ev.resultIndex; i < ev.results.length; i++) {
+        const r = ev.results[i];
+        const t = r[0].transcript;
+        if (r.isFinal) finalizeLine(t);
+        else interim += t;
+      }
+      if (interim.trim()) updateInterim(interim.trim());
+    };
+
+    rec.onerror = (ev) => {
+      const e = ev.error;
+      if (e === "not-allowed" || e === "service-not-allowed") {
+        ccWanted = false;
+        addNotice("받아쓰기 권한이 없어요. [자막] 버튼을 눌러 다시 켜 보세요.");
+      } else if (e === "audio-capture") {
+        recFailCount++;
+        if (recFailCount >= 3) { ccWanted = false; addNotice("이 기기에서는 통화 중 받아쓰기가 안 되는 것 같아요."); }
+      }
+      // no-speech, aborted, network 등은 onend에서 다시 시작
+    };
+
+    rec.onend = () => {
+      recRunning = false;
+      if (curText) finalizeLine(curText);   // 끊기며 남은 문장 확정
+      updateCcUi();
+      clearTimeout(restartTimer);
+      if (ccWanted && !muted && activeCall) restartTimer = setTimeout(startRecognition, 300);
+    };
+
+    rec.start();
+  } catch (e) {
+    recRunning = false;
+    updateCcUi();
+  }
+}
+
+function stopRecognition() {
+  clearTimeout(restartTimer);
+  if (rec) {
+    const r = rec; rec = null;
+    r.onend = null; r.onresult = null; r.onerror = null;
+    try { r.abort(); } catch (e) {}
+  }
+  recRunning = false;
+  curId = null; curText = ""; curTr = null;
+  updateCcUi();
+}
+
+function updateInterim(text) {
+  if (!curId) { curId = `${myTag}-${++lineSeq}`; curTr = null; }
+  curText = text;
+  const id = curId;
+  renderLine({ id: "m-" + id, mine: true, text, tr: curTr, final: false });
+  sendData({ t: "line", id, text, tr: curTr, final: false });
+
+  // 말하는 중에도 1초마다 번역을 갱신
+  const now = Date.now();
+  if (partnerLang && !interimTrBusy && now - lastInterimTr > 1000) {
+    lastInterimTr = now;
+    interimTrBusy = true;
+    translate(text, myLang, partnerLang).then((tr) => {
+      interimTrBusy = false;
+      if (tr && curId === id) {
+        curTr = tr;
+        renderLine({ id: "m-" + id, mine: true, text: curText, tr, final: false });
+        sendData({ t: "line", id, text: curText, tr, final: false });
+      }
+    });
+  }
+}
+
+function finalizeLine(text) {
+  text = (text || "").trim();
+  const id = curId || `${myTag}-${++lineSeq}`;
+  const prevTr = curTr;
+  curId = null; curText = ""; curTr = null;
+  if (!text) return;
+  renderLine({ id: "m-" + id, mine: true, text, tr: prevTr, final: true });
+  sendData({ t: "line", id, text, tr: prevTr, final: true });
+  translate(text, myLang, partnerLang).then((tr) => {
+    if (!tr) return;
+    renderLine({ id: "m-" + id, mine: true, text, tr, final: true });
+    sendData({ t: "line", id, text, tr, final: true });
+  });
+}
+
+
+/* =====================================================================
+   지연 줄이기 + 연결 정보
+   ===================================================================== */
 function lowLatency(pc) {
   if (!pc) return;
   try {
     pc.getReceivers().forEach((r) => {
-      // 받는 쪽 버퍼를 최소로 (지원하는 브라우저에서만)
       if ("jitterBufferTarget" in r) r.jitterBufferTarget = 0;
       else if ("playoutDelayHint" in r) r.playoutDelayHint = 0;
     });
   } catch (e) {}
 }
-
-let statsTimer = null;
 function stopStats() { clearInterval(statsTimer); statsTimer = null; els.net.textContent = ""; }
 function startStats(call) {
   stopStats();
@@ -393,9 +693,7 @@ function startStats(call) {
     try {
       const stats = await pc.getStats();
       let pair = null;
-      stats.forEach((s) => {
-        if (s.type === "transport" && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId);
-      });
+      stats.forEach((s) => { if (s.type === "transport" && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId); });
       if (!pair) stats.forEach((s) => {
         if (s.type === "candidate-pair" && s.state === "succeeded" && (s.nominated || s.selected)) pair = pair || s;
       });
@@ -405,33 +703,19 @@ function startStats(call) {
       let path;
       if (local.candidateType === "relay" || remote.candidateType === "relay") {
         const proto = (local.relayProtocol || local.protocol || "").toUpperCase();
-        path = proto === "UDP" ? "중계 서버(빠름)" : `중계 서버(${proto || "TCP"}, 느림)`;
-      } else {
-        path = "직접 연결";
-      }
+        path = proto === "UDP" ? "중계" : `중계(${proto || "TCP"})`;
+      } else path = "직접";
       const rtt = pair.currentRoundTripTime;
-      const ms = typeof rtt === "number" ? Math.round(rtt * 1000) : null;
-      els.net.textContent = ms !== null ? `${path} · 왕복 ${ms}ms` : path;
+      els.net.textContent = typeof rtt === "number" ? `${path} · ${Math.round(rtt * 1000)}ms` : path;
     } catch (e) {}
   };
   read();
   statsTimer = setInterval(read, 2000);
 }
 
-function endCall(call, message) {
-  if (pendingCall === call) pendingCall = null;
-  if (activeCall !== call) return;
-  activeCall = null;
-  stopStats();
-  stopClock();
-  els.remote.srcObject = null;
-  els.unlock.hidden = true;
-  setLive(false);
-  if (!active) return;
-  setStatus(message, role === "b" ? "상대방이 다시 들어오면 자동으로 연결돼요." : "상대방이 다시 들어오면 자동으로 연결돼요.");
-}
-
-/* ---------- 시계 ---------- */
+/* =====================================================================
+   시계
+   ===================================================================== */
 function startClock() {
   stopClock();
   startedAt = Date.now();
@@ -446,12 +730,21 @@ function startClock() {
 }
 function stopClock() { clearInterval(clockTimer); clockTimer = null; els.timer.textContent = "00:00"; }
 
-/* ---------- 버튼 ---------- */
+/* =====================================================================
+   버튼
+   ===================================================================== */
 els.mute.addEventListener("click", () => {
   muted = !muted;
   if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
   els.mute.classList.toggle("on", muted);
   els.muteLabel.textContent = muted ? "음소거 해제" : "음소거";
+  if (muted) stopRecognition(); else if (ccWanted) startRecognition();
+});
+
+els.cc.addEventListener("click", () => {
+  if (ccWanted && recRunning) { ccWanted = false; stopRecognition(); }
+  else { ccWanted = true; recFailCount = 0; startRecognition(); }
+  updateCcUi();
 });
 
 els.unlock.addEventListener("click", () => {
@@ -464,14 +757,16 @@ function hangUp() {
   active = false;
   clearInterval(redialTimer);
   clearTimeout(slowTimer);
+  stopRecognition();
   stopStats();
   stopClock();
   if (activeCall) { const c = activeCall; activeCall = null; c.close(); }
   if (pendingCall) { const c = pendingCall; pendingCall = null; c.close(); }
+  if (dataConn) { const d = dataConn; dataConn = null; try { d.close(); } catch (e) {} }
   if (peer) { const p = peer; peer = null; p.destroy(); }
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
   els.remote.srcObject = null;
-  muted = false;
+  muted = false; partnerLang = null; keyWarned = false;
   els.mute.classList.remove("on");
   els.muteLabel.textContent = "음소거";
   els.unlock.hidden = true;
@@ -482,7 +777,9 @@ function hangUp() {
 
 window.addEventListener("pagehide", () => { if (peer) peer.destroy(); });
 
-/* ---------- 화면 꺼짐 방지 ---------- */
+/* =====================================================================
+   화면 꺼짐 방지
+   ===================================================================== */
 async function requestWakeLock() {
   try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
 }
@@ -490,6 +787,8 @@ function releaseWakeLock() { try { if (wakeLock) wakeLock.release(); } catch (e)
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible" && active) requestWakeLock();
 });
+
+updateCcUi();
 </script>
 </body>
 </html>
