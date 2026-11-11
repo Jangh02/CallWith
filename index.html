@@ -68,6 +68,7 @@
   #detail { margin-top: 8px; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.5; min-height: 21px; }
   #timer { margin-top: 14px; font-size: 32px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
   #timer[hidden] { display: none; }
+  #net { margin-top: 10px; color: var(--muted); font-size: 13px; min-height: 18px; }
 
   .controls { margin-top: auto; padding: 30px 0 40px; display: flex; gap: 28px; justify-content: center; }
   .round {
@@ -107,6 +108,7 @@
     <div id="status">연결 준비 중…</div>
     <div id="detail"></div>
     <div id="timer" hidden>00:00</div>
+    <div id="net"></div>
     <button id="unlock" hidden>🔊 소리가 안 들리면 여기를 누르세요</button>
 
     <div class="controls">
@@ -153,7 +155,7 @@ const ICE_SERVERS = [
 const $ = (id) => document.getElementById(id);
 const els = {
   setup: $("setup"), call: $("call"), code: $("code"), join: $("join"), err: $("err"),
-  orb: $("orb"), status: $("status"), detail: $("detail"), timer: $("timer"),
+  orb: $("orb"), status: $("status"), detail: $("detail"), timer: $("timer"), net: $("net"),
   mute: $("mute"), muteLabel: $("muteLabel"), hangup: $("hangup"),
   unlock: $("unlock"), remote: $("remote"),
 };
@@ -327,6 +329,8 @@ function watchCall(call) {
     setLive(true);
     setStatus("통화 중", "");
     if (!clockTimer) startClock();
+    lowLatency(call.peerConnection);
+    startStats(call);
   };
 
   call.on("stream", (stream) => {
@@ -366,10 +370,59 @@ function watchCall(call) {
   }
 }
 
+/* ---------- 지연 줄이기 + 연결 정보 표시 ---------- */
+function lowLatency(pc) {
+  if (!pc) return;
+  try {
+    pc.getReceivers().forEach((r) => {
+      // 받는 쪽 버퍼를 최소로 (지원하는 브라우저에서만)
+      if ("jitterBufferTarget" in r) r.jitterBufferTarget = 0;
+      else if ("playoutDelayHint" in r) r.playoutDelayHint = 0;
+    });
+  } catch (e) {}
+}
+
+let statsTimer = null;
+function stopStats() { clearInterval(statsTimer); statsTimer = null; els.net.textContent = ""; }
+function startStats(call) {
+  stopStats();
+  const pc = call.peerConnection;
+  if (!pc) return;
+  const read = async () => {
+    if (activeCall !== call) { stopStats(); return; }
+    try {
+      const stats = await pc.getStats();
+      let pair = null;
+      stats.forEach((s) => {
+        if (s.type === "transport" && s.selectedCandidatePairId) pair = stats.get(s.selectedCandidatePairId);
+      });
+      if (!pair) stats.forEach((s) => {
+        if (s.type === "candidate-pair" && s.state === "succeeded" && (s.nominated || s.selected)) pair = pair || s;
+      });
+      if (!pair) return;
+      const local = stats.get(pair.localCandidateId) || {};
+      const remote = stats.get(pair.remoteCandidateId) || {};
+      let path;
+      if (local.candidateType === "relay" || remote.candidateType === "relay") {
+        const proto = (local.relayProtocol || local.protocol || "").toUpperCase();
+        path = proto === "UDP" ? "중계 서버(빠름)" : `중계 서버(${proto || "TCP"}, 느림)`;
+      } else {
+        path = "직접 연결";
+      }
+      const rtt = pair.currentRoundTripTime;
+      const ms = typeof rtt === "number" ? Math.round(rtt * 1000) : null;
+      els.net.textContent = ms !== null ? `${path} · 왕복 ${ms}ms` : path;
+    } catch (e) {}
+  };
+  read();
+  statsTimer = setInterval(read, 2000);
+}
+
 function endCall(call, message) {
   if (pendingCall === call) pendingCall = null;
   if (activeCall !== call) return;
   activeCall = null;
+  stopStats();
   stopClock();
   els.remote.srcObject = null;
   els.unlock.hidden = true;
@@ -411,6 +464,7 @@ function hangUp() {
   active = false;
   clearInterval(redialTimer);
   clearTimeout(slowTimer);
+  stopStats();
   stopClock();
   if (activeCall) { const c = activeCall; activeCall = null; c.close(); }
   if (pendingCall) { const c = pendingCall; pendingCall = null; c.close(); }
