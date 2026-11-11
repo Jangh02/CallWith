@@ -143,14 +143,20 @@
       <input id="code" placeholder="예: 우리만아는말1234" autocomplete="off" autocapitalize="off" spellcheck="false">
       <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 상대방은 자기 언어를 고르고 같은 암호를 넣으면 돼요.</p>
 
+      <label for="stt">받아쓰기 방식</label>
+      <select id="stt">
+        <option value="ai">AI 받아쓰기 — 정확함, 말이 끝나고 1~3초 뒤 표시 (키 필요)</option>
+        <option value="fast">빠른 받아쓰기 — 말하는 동안 실시간 표시, 덜 정확함</option>
+      </select>
+
       <label for="gkey">AI 번역 키 <span style="opacity:.7">(선택)</span></label>
-      <input id="gkey" type="password" placeholder="AIza…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <input id="gkey" type="password" placeholder="AQ.… 또는 AIza…" autocomplete="off" autocapitalize="off" spellcheck="false">
       <p class="hint">키는 이 기기에만 저장되고 페이지에는 올라가지 않아요. 한 사람만 넣어도 양쪽 말이 모두 번역돼요.</p>
 
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer>통화 소리는 저장되지 않아요.<br>자막을 켜면 말한 문장이 번역을 위해 Google 번역으로 보내져요.</footer>
+    <footer><b style="color:var(--text)">버전 8</b><br>통화 소리는 저장되지 않아요.<br>자막을 켜면 말한 문장이 번역을 위해 Google 번역으로 보내져요.</footer>
   </section>
 
   <!-- ============ 통화 화면 ============ -->
@@ -232,7 +238,7 @@ const LANG_NAME = { "ko-KR": "한국어", "ja-JP": "일본어", "zh-TW": "중국
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  setup: $("setup"), call: $("call"), code: $("code"), lang: $("lang"), gkey: $("gkey"), join: $("join"), err: $("err"),
+  setup: $("setup"), call: $("call"), code: $("code"), lang: $("lang"), gkey: $("gkey"), stt: $("stt"), join: $("join"), err: $("err"),
   dot: $("dot"), status: $("status"), detail: $("detail"), timer: $("timer"), net: $("net"),
   chat: $("chat"), empty: $("empty"),
   mute: $("mute"), muteLabel: $("muteLabel"), cc: $("cc"), ccLabel: $("ccLabel"), hangup: $("hangup"),
@@ -246,10 +252,14 @@ let startedAt = 0, muted = false, wakeLock = null, active = false;
 let myLang = "ko-KR", partnerLang = null, partnerCanTr = false, gKey = "";
 const geminiKey = () => GEMINI_KEY || gKey;
 const hasTranslator = () => !!(geminiKey() || TRANSLATE_KEY);
+let aiMode = true, partnerAi = false, remoteStream = null;
+const myAi = () => aiMode && !!geminiKey();       // 이 기기가 AI 받아쓰기를 하는지
 
 try {
   els.code.value = localStorage.getItem("duocall-code") || "";
   els.gkey.value = localStorage.getItem("duocall-gkey") || "";
+  const savedStt = localStorage.getItem("duocall-stt");
+  if (savedStt === "ai" || savedStt === "fast") els.stt.value = savedStt;
   const savedLang = localStorage.getItem("duocall-lang");
   if (savedLang && TR_CODE[savedLang]) els.lang.value = savedLang;
 } catch (e) {}
@@ -278,10 +288,12 @@ els.join.addEventListener("click", async () => {
   if (!window.Peer) { showError("연결 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요."); return; }
   if (!navigator.mediaDevices || !window.isSecureContext) { showError("이 페이지는 https:// 주소에서만 마이크를 쓸 수 있어요."); return; }
   gKey = els.gkey.value.trim();
+  aiMode = els.stt.value === "ai";
   try {
     localStorage.setItem("duocall-code", code);
     localStorage.setItem("duocall-lang", myLang);
     localStorage.setItem("duocall-gkey", gKey);
+    localStorage.setItem("duocall-stt", els.stt.value);
   } catch (e) {}
 
   els.join.disabled = true;
@@ -297,10 +309,12 @@ els.join.addEventListener("click", async () => {
   }
   els.join.disabled = false;
 
+  ensureAudioCtx();
   els.remote.muted = false;
   els.remote.play().catch(() => {});
 
   base = await hashCode(code);
+  clearChat();
   active = true;
   els.setup.hidden = true;
   els.call.hidden = false;
@@ -404,6 +418,7 @@ function watchCall(call) {
     if (live || activeCall !== call) return;
     live = true; everLive = true;
     clearTimeout(slowTimer);
+    if (chatFromEndedCall) clearChat();
     els.remote.play().then(() => { els.unlock.hidden = true; }).catch(() => { els.unlock.hidden = false; });
     setLive(true);
     setStatus("통화 중", "");
@@ -414,13 +429,23 @@ function watchCall(call) {
     if (role === "b" && (!dataConn || !dataConn.open)) {
       setupData(peer.connect(otherId(), { reliable: true }));
     }
-    if (ccWanted) startRecognition();
+    updateCaptures();
+    // 자막 연결 확인: 상대 정보가 안 오면 다시 시도
+    const ensureData = (attempt) => {
+      if (activeCall !== call || partnerLang) return;
+      if (dataConn && dataConn.open) sendData({ t: "hello", lang: myLang, tr: hasTranslator(), ai: myAi() });
+      else if (peer && !peer.destroyed && (role === "b" || attempt >= 2)) setupData(peer.connect(otherId(), { reliable: true }));
+      if (attempt < 6) setTimeout(() => ensureData(attempt + 1), 3000);
+      else if (!partnerLang) addNotice("⚠ 자막 연결이 안 돼요. 끊고 다시 걸어 주세요.");
+    };
+    setTimeout(() => ensureData(1), 3000);
   };
 
   call.on("stream", (stream) => {
     if (pendingCall === call) pendingCall = null;
     activeCall = call;
     els.remote.srcObject = stream;
+    remoteStream = stream;
     setStatus("상대방을 찾았어요. 소리 연결 중…");
     const s = call.peerConnection && call.peerConnection.iceConnectionState;
     if (s === "connected" || s === "completed") goLive();
@@ -451,7 +476,8 @@ function endCall(call, message) {
   if (pendingCall === call) pendingCall = null;
   if (activeCall !== call) return;
   activeCall = null;
-  stopRecognition();
+  if (lines.size) chatFromEndedCall = true;
+  stopAllCaptures();
   stopStats();
   stopClock();
   els.remote.srcObject = null;
@@ -468,7 +494,7 @@ function setupData(conn) {
   if (!conn) return;
   if (dataConn && dataConn !== conn) { try { dataConn.close(); } catch (e) {} }
   dataConn = conn;
-  conn.on("open", () => { if (dataConn === conn) sendData({ t: "hello", lang: myLang, tr: hasTranslator() }); });
+  conn.on("open", () => { if (dataConn === conn) sendData({ t: "hello", lang: myLang, tr: hasTranslator(), ai: myAi() }); });
   conn.on("data", (msg) => { if (dataConn === conn) onData(msg); });
   conn.on("close", () => { if (dataConn === conn) dataConn = null; });
   conn.on("error", () => {});
@@ -483,11 +509,27 @@ function onData(msg) {
     const first = partnerLang === null;
     if (TR_CODE[msg.lang]) partnerLang = msg.lang;
     partnerCanTr = !!msg.tr;
+    partnerAi = !!msg.ai;
+    updateCaptures();
     if (first) {
-      sendData({ t: "hello", lang: myLang, tr: hasTranslator() });
+      sendData({ t: "hello", lang: myLang, tr: hasTranslator(), ai: myAi() });
       addNotice(`상대방 언어: ${LANG_NAME[partnerLang] || "알 수 없음"}`);
       if (!hasTranslator() && !partnerCanTr) addNotice("두 사람 모두 번역 키가 없어서 원문만 보여요.");
     }
+    return;
+  }
+  if (msg.t === "self" && typeof msg.id === "string") {
+    // 상대 기기가 받아 적어 준 "내" 말
+    renderLine({
+      id: "m-" + msg.id, mine: true,
+      text: String(msg.text || "").slice(0, 2000),
+      tr: typeof msg.tr === "string" ? msg.tr.slice(0, 2000) : null,
+      final: !!msg.final,
+    });
+    return;
+  }
+  if (msg.t === "drop" && typeof msg.id === "string") {
+    removeLine((msg.kind === "self" ? "m-" : "p-") + msg.id);
     return;
   }
   if (msg.t === "tr" && typeof msg.id === "string" && typeof msg.tr === "string") {
@@ -562,6 +604,11 @@ function renderLine({ id, mine, text, tr, final }) {
   if (stick || mine) scrollDown();
 }
 
+function removeLine(id) {
+  const L = lines.get(id);
+  if (L) { L.row.remove(); lines.delete(id); }
+}
+
 let pInterimBusy = false, lastPInterim = 0;
 function setTr(id, tr, final) {
   const L = lines.get(id);
@@ -571,6 +618,20 @@ function setTr(id, tr, final) {
   const stick = nearBottom();
   L.tr.textContent = tr;
   if (stick) scrollDown();
+}
+
+let chatFromEndedCall = false;   // 지난 통화 기록이 화면에 남아 있는지
+function clearChat() {
+  els.chat.textContent = "";
+  const e = document.createElement("div");
+  e.id = "empty"; e.className = "empty";
+  e.innerHTML = "연결되면 서로 말하는 내용이<br>여기에 원문과 번역으로 나타나요.";
+  els.chat.append(e);
+  els.empty = e;
+  lines.clear();
+  history.length = 0;
+  seenFinal.clear();
+  chatFromEndedCall = false;
 }
 
 function addNotice(text) {
@@ -610,43 +671,106 @@ async function translate(text, fromLang, toLang, speaker = "me") {
   return null;
 }
 
+const GEMINI_MODELS = [GEMINI_MODEL, "gemini-flash-latest", "gemini-2.5-flash-lite", "gemini-2.5-flash"]
+  .filter((m, i, arr) => arr.indexOf(m) === i);
+let modelIdx = 0;
+let lastTrError = "";
+
+function noteTrError(msg) {
+  if (msg && msg !== lastTrError) addNotice("⚠ " + msg);
+  lastTrError = msg;
+}
+
+/* Gemini 호출 공통: 모델 이름이 없으면 다음 모델, 한도 초과면 한 번 재시도 */
+async function geminiCall(bodyObj) {
+  const body = JSON.stringify(bodyObj);
+  let retried = false;
+  for (let tries = 0; tries < GEMINI_MODELS.length + 1; tries++) {
+    const model = GEMINI_MODELS[modelIdx];
+    let res;
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": geminiKey() },
+        body,
+      });
+    } catch (e) {
+      noteTrError("AI 서버에 연결하지 못했어요 (네트워크 또는 키 문제)");
+      return null;
+    }
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
+      const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+      const out = parts ? parts.filter((p) => !p.thought).map((p) => p.text || "").join("").trim() : "";
+      lastTrError = "";
+      return out;
+    }
+    let detail = "";
+    try { const j = await res.json(); detail = (j && j.error && j.error.message) || ""; } catch (e) {}
+    if (res.status === 404 && modelIdx < GEMINI_MODELS.length - 1) { modelIdx++; continue; }
+    if (res.status === 429 && !retried) { retried = true; await new Promise((r) => setTimeout(r, 1500)); continue; }
+    if (res.status === 429) noteTrError("AI 사용량 한도에 걸렸어요. 무료 한도라면 결제를 켜야 계속 쓸 수 있어요.");
+    else noteTrError(`AI 오류 ${res.status}: ${detail.slice(0, 140)}`);
+    return null;
+  }
+  return null;
+}
+
+function contextText(speaker) {
+  return history.slice(-6).map((h) => `${h.who === speaker ? "A" : "B"}: ${h.text}`).join("\n");
+}
+
 async function translateGemini(text, fromLang, toLang, speaker) {
   const from = LANG_NAME_EN[fromLang], to = LANG_NAME_EN[toLang];
-  const ctx = history.slice(-6).map((h) => `${h.who === speaker ? "A" : "B"}: ${h.text}`).join("\n");
+  const ctx = contextText(speaker);
   const system =
-    `You are a live interpreter for a casual phone call between two friends (A speaks ${from}, B speaks ${to === from ? "another language" : to}). ` +
+    `You are a live interpreter for a casual phone call between two friends (A speaks ${from}, B speaks ${to}). ` +
     `Translate A's latest utterance from ${from} into natural, spoken ${to}, the way a native speaker would actually say it to a friend. ` +
     `Keep the speaker's tone, politeness level, emotion and slang. The text comes from speech recognition, so silently fix obvious recognition mistakes and missing punctuation. ` +
     `Use the recent conversation only for context. Output ONLY the translation, with no quotes, notes or romanization.`;
   const user = (ctx ? `Recent conversation:\n${ctx}\n\n` : "") + `Translate this (A, ${from}):\n${text}`;
+  const out = await geminiCall({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts: [{ text: user }] }],
+    generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
+  });
+  return out || null;
+}
+
+/* 음성 → 받아쓰기 + 번역을 한 번에 */
+async function transcribeGemini(wavB64, fromLang, toLang, speaker) {
+  const from = LANG_NAME_EN[fromLang], to = LANG_NAME_EN[toLang];
+  const ctx = contextText(speaker);
+  const system =
+    `You are a live interpreter for a casual phone call between two friends. A speaks ${from}; B speaks ${to}. ` +
+    `The audio is one short utterance by A. First transcribe exactly what A said, in ${from}, using its normal script and natural punctuation. ` +
+    `Use the recent conversation to resolve unclear words, but never invent words that were not spoken. ` +
+    `Then translate it into natural, spoken ${to}, the way a native speaker would say it to a friend, keeping tone, politeness level, emotion and slang. ` +
+    `If the audio contains no clear speech (silence, noise, breathing, background sounds, or only filler sounds), return empty strings for both fields.`;
+  const parts = [];
+  if (ctx) parts.push({ text: `Recent conversation (for context only):\n${ctx}` });
+  parts.push({ text: `Utterance by A (${from}):` });
+  parts.push({ inlineData: { mimeType: "audio/wav", data: wavB64 } });
+  const out = await geminiCall({
+    systemInstruction: { parts: [{ text: system }] },
+    contents: [{ role: "user", parts }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 600,
+      responseMimeType: "application/json",
+      responseSchema: {
+        type: "OBJECT",
+        properties: { text: { type: "STRING" }, translation: { type: "STRING" } },
+        required: ["text", "translation"],
+      },
+    },
+  });
+  if (out === null) return null;
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiKey())}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: [{ role: "user", parts: [{ text: user }] }],
-          generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
-        }),
-      }
-    );
-    if (!res.ok) {
-      if (!geminiWarned) {
-        geminiWarned = true;
-        addNotice(res.status === 429
-          ? "AI 번역 사용량 한도에 걸렸어요. 잠시 후 다시 돼요."
-          : `AI 번역 오류 (${res.status}) — Gemini 키 설정을 확인해 주세요.`);
-      }
-      return null;
-    }
-    const data = await res.json();
-    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
-    const out = parts ? parts.filter((p) => !p.thought).map((p) => p.text || "").join("").trim() : "";
-    return out || null;
+    const j = JSON.parse(out.replace(/^```(?:json)?\s*|\s*```$/g, ""));
+    return { text: String(j.text || "").trim(), tr: String(j.translation || "").trim() };
   } catch (e) {
-    return null;
+    return { text: out.trim(), tr: "" };
   }
 }
 
@@ -679,13 +803,14 @@ let lastInterimTr = 0, interimTrBusy = false, restartTimer = null, recFailCount 
 const myTag = Math.random().toString(36).slice(2, 7);
 
 function updateCcUi() {
-  els.cc.classList.toggle("active", ccWanted && recRunning);
-  els.ccLabel.textContent = !SR ? "자막 미지원" : ccWanted ? (recRunning ? "자막 켜짐" : "자막 준비") : "자막 꺼짐";
+  const on = ccWanted && (recRunning || capMine || capTheirs || (partnerAi && !hasTranslator()));
+  els.cc.classList.toggle("active", !!on);
+  els.ccLabel.textContent = !ccWanted ? "자막 꺼짐" : on ? (myAi() ? "AI 자막" : "자막 켜짐") : "자막 준비";
 }
 
 function startRecognition() {
   if (!SR) { addNotice("이 브라우저는 받아쓰기를 지원하지 않아요. 아이폰은 Safari, 안드로이드는 Chrome을 써 주세요."); ccWanted = false; updateCcUi(); return; }
-  if (!ccWanted || muted || !activeCall || recRunning) return;
+  if (!wantBrowserSR() || recRunning) return;
   try {
     rec = new SR();
     rec.lang = myLang;
@@ -723,7 +848,7 @@ function startRecognition() {
       if (curText) finalizeLine(curText);   // 끊기며 남은 문장 확정
       updateCcUi();
       clearTimeout(restartTimer);
-      if (ccWanted && !muted && activeCall) restartTimer = setTimeout(startRecognition, 300);
+      if (wantBrowserSR()) restartTimer = setTimeout(startRecognition, 300);
     };
 
     rec.start();
@@ -777,15 +902,193 @@ function finalizeLine(text) {
   if (!text) return;
   renderLine({ id: "m-" + id, mine: true, text, tr: prevTr, final: true });
   sendData({ t: "line", id, text, tr: prevTr, final: true });
-  const job = hasTranslator() ? translate(text, myLang, partnerLang) : Promise.resolve(null);   // 문맥은 호출 순간 기준
+  if (hasTranslator() && !partnerLang) setTr("m-" + id, "⚠ 상대방 정보를 아직 못 받아서 번역하지 못했어요", true);
+  const job = hasTranslator() && partnerLang ? translate(text, myLang, partnerLang) : Promise.resolve(null);   // 문맥은 호출 순간 기준
   remember("me", text);
   job.then((tr) => {
-    if (!tr) return;
+    if (!tr) {
+      if (hasTranslator() && partnerLang) setTr("m-" + id, "⚠ 번역 실패" + (lastTrError ? ` — ${lastTrError}` : ""), true);
+      return;
+    }
     renderLine({ id: "m-" + id, mine: true, text, tr, final: true });
     sendData({ t: "line", id, text, tr, final: true });
   });
 }
 
+
+/* =====================================================================
+   AI 받아쓰기: 말소리를 감지해 문장 단위로 녹음 → Gemini
+   ===================================================================== */
+let audioCtx = null;
+function ensureAudioCtx() {
+  try {
+    if (!audioCtx) { const AC = window.AudioContext || window.webkitAudioContext; if (AC) audioCtx = new AC(); }
+    if (audioCtx && audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  } catch (e) {}
+  return audioCtx;
+}
+
+let capMine = null, capTheirs = null;
+
+function wantBrowserSR() {
+  if (!ccWanted || muted || !activeCall || !partnerLang) return false;
+  if (myAi()) return false;                              // AI가 내 말을 받아 적음
+  if (partnerAi && !hasTranslator()) return false;       // 상대 기기가 내 말을 받아 적어 줌
+  return true;
+}
+
+function updateCaptures() {
+  const live = !!activeCall && !!partnerLang;
+  const wantMine = live && ccWanted && myAi() && !muted && !!localStream;
+  const wantTheirs = live && ccWanted && myAi() && !partnerAi && !partnerCanTr && !!remoteStream;
+
+  if (wantMine && !capMine) capMine = createCapture(localStream, "me");
+  if (!wantMine && capMine) { capMine.stop(); capMine = null; }
+  if (wantTheirs && !capTheirs) capTheirs = createCapture(remoteStream, "partner");
+  if (!wantTheirs && capTheirs) { capTheirs.stop(); capTheirs = null; }
+
+  if (wantBrowserSR()) startRecognition(); else stopRecognition();
+  updateCcUi();
+}
+
+function stopAllCaptures() {
+  if (capMine) { capMine.stop(); capMine = null; }
+  if (capTheirs) { capTheirs.stop(); capTheirs = null; }
+  stopRecognition();
+}
+
+function createCapture(stream, who) {
+  const ctx = ensureAudioCtx();
+  if (!ctx) { addNotice("이 브라우저는 AI 받아쓰기를 지원하지 않아요."); return null; }
+  let src, proc, sink;
+  try {
+    src = ctx.createMediaStreamSource(stream);
+    proc = ctx.createScriptProcessor(4096, 1, 1);
+    sink = ctx.createGain(); sink.gain.value = 0;
+    src.connect(proc); proc.connect(sink); sink.connect(ctx.destination);
+  } catch (e) {
+    addNotice("마이크 소리를 읽지 못했어요. 페이지를 새로고침해 주세요.");
+    return null;
+  }
+  const rate = ctx.sampleRate;
+  const frameMs = (4096 / rate) * 1000;
+  const preMax = Math.ceil(350 / frameMs);
+  let floor = 0.004, speaking = false, voiced = 0, silentMs = 0, segMs = 0;
+  let pre = [], seg = [], segId = null, stopped = false;
+
+  proc.onaudioprocess = (e) => {
+    if (stopped) return;
+    const d = e.inputBuffer.getChannelData(0);
+    const buf = new Float32Array(d);
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+    const rms = Math.sqrt(sum / buf.length);
+    const thr = Math.max(0.012, floor * 3.5);
+    const loud = rms > thr;
+
+    if (!speaking) {
+      if (!loud) floor = floor * 0.95 + rms * 0.05;
+      pre.push(buf); if (pre.length > preMax) pre.shift();
+      voiced = loud ? voiced + 1 : 0;
+      if (voiced >= 2) {
+        speaking = true;
+        seg = pre; pre = []; silentMs = 0; segMs = seg.length * frameMs;
+        segId = segmentStart(who);
+      }
+    } else {
+      seg.push(buf); segMs += frameMs;
+      silentMs = loud ? 0 : silentMs + frameMs;
+      if (silentMs >= 750 || segMs >= 12000) {
+        speaking = false; voiced = 0;
+        const frames = seg, id = segId, speechMs = segMs - silentMs;
+        seg = []; segId = null;
+        segmentEnd(who, id, frames, rate, speechMs);
+      }
+    }
+  };
+
+  return {
+    stop() {
+      stopped = true;
+      proc.onaudioprocess = null;
+      try { src.disconnect(); proc.disconnect(); sink.disconnect(); } catch (e) {}
+      if (segId) dropSegment(who, segId);
+    },
+  };
+}
+
+function segmentStart(who) {
+  const id = `${myTag}-${++lineSeq}`;
+  if (who === "me") {
+    renderLine({ id: "m-" + id, mine: true, text: "🎙", tr: null, final: false });
+    sendData({ t: "line", id, text: "🎙", tr: null, final: false });
+  } else {
+    renderLine({ id: "p-" + id, mine: false, text: "🎙", tr: null, final: false });
+    sendData({ t: "self", id, text: "🎙", tr: null, final: false });
+  }
+  return id;
+}
+
+function dropSegment(who, id) {
+  removeLine((who === "me" ? "m-" : "p-") + id);
+  sendData({ t: "drop", id, kind: who === "me" ? "line" : "self" });
+}
+
+async function segmentEnd(who, id, frames, rate, speechMs) {
+  if (speechMs < 450) { dropSegment(who, id); return; }   // 너무 짧은 소리(기침, 잡음)는 버림
+  const fromLang = who === "me" ? myLang : partnerLang;
+  const toLang = who === "me" ? partnerLang : myLang;
+  const wav = encodeWav16k(frames, rate);
+  const r = await transcribeGemini(wav, fromLang, toLang, who === "me" ? "me" : "partner");
+  if (!r) {
+    // 실패: 말풍선에 이유 표시
+    const key = (who === "me" ? "m-" : "p-") + id;
+    renderLine({ id: key, mine: who === "me", text: "(받아쓰기 실패)", tr: lastTrError ? "⚠ " + lastTrError : null, final: true });
+    return;
+  }
+  if (!r.text) { dropSegment(who, id); return; }
+  remember(who === "me" ? "me" : "partner", r.text.slice(0, 300));
+  if (who === "me") {
+    renderLine({ id: "m-" + id, mine: true, text: r.text, tr: r.tr || null, final: true });
+    sendData({ t: "line", id, text: r.text, tr: r.tr || null, final: true });
+  } else {
+    seenFinal.add(id);
+    renderLine({ id: "p-" + id, mine: false, text: r.text, tr: r.tr || null, final: true });
+    sendData({ t: "self", id, text: r.text, tr: r.tr || null, final: true });
+  }
+}
+
+/* Float32 프레임들 → 16kHz 16bit WAV → base64 */
+function encodeWav16k(frames, rate) {
+  let total = 0;
+  for (const f of frames) total += f.length;
+  const ratio = rate / 16000;
+  const outLen = Math.floor(total / ratio);
+  const pcm = new Int16Array(outLen);
+  // 평균 내며 줄이기
+  let fi = 0, off = 0, acc = 0, cnt = 0, pos = 0, next = ratio;
+  for (const f of frames) {
+    for (let i = 0; i < f.length; i++) {
+      acc += f[i]; cnt++; pos++;
+      if (pos >= next && fi < outLen) {
+        const v = Math.max(-1, Math.min(1, acc / cnt));
+        pcm[fi++] = v < 0 ? v * 0x8000 : v * 0x7fff;
+        acc = 0; cnt = 0; next += ratio;
+      }
+    }
+  }
+  const bytes = new Uint8Array(44 + fi * 2);
+  const dv = new DataView(bytes.buffer);
+  const w = (o, str) => { for (let i = 0; i < str.length; i++) bytes[o + i] = str.charCodeAt(i); };
+  w(0, "RIFF"); dv.setUint32(4, 36 + fi * 2, true); w(8, "WAVE");
+  w(12, "fmt "); dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, 16000, true); dv.setUint32(28, 32000, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  w(36, "data"); dv.setUint32(40, fi * 2, true);
+  for (let i = 0; i < fi; i++) dv.setInt16(44 + i * 2, pcm[i], true);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
 
 /* =====================================================================
    지연 줄이기 + 연결 정보
@@ -854,13 +1157,13 @@ els.mute.addEventListener("click", () => {
   if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
   els.mute.classList.toggle("on", muted);
   els.muteLabel.textContent = muted ? "음소거 해제" : "음소거";
-  if (muted) stopRecognition(); else if (ccWanted) startRecognition();
+  updateCaptures();
 });
 
 els.cc.addEventListener("click", () => {
-  if (ccWanted && recRunning) { ccWanted = false; stopRecognition(); }
-  else { ccWanted = true; recFailCount = 0; startRecognition(); }
-  updateCcUi();
+  ccWanted = !ccWanted;
+  recFailCount = 0;
+  updateCaptures();
 });
 
 els.unlock.addEventListener("click", () => {
@@ -873,7 +1176,7 @@ function hangUp() {
   active = false;
   clearInterval(redialTimer);
   clearTimeout(slowTimer);
-  stopRecognition();
+  stopAllCaptures();
   stopStats();
   stopClock();
   if (activeCall) { const c = activeCall; activeCall = null; c.close(); }
@@ -882,7 +1185,7 @@ function hangUp() {
   if (peer) { const p = peer; peer = null; p.destroy(); }
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
   els.remote.srcObject = null;
-  muted = false; partnerLang = null; partnerCanTr = false; keyWarned = false; geminiWarned = false; history.length = 0; seenFinal.clear();
+  muted = false; partnerLang = null; partnerCanTr = false; partnerAi = false; remoteStream = null; keyWarned = false; geminiWarned = false; lastTrError = ""; history.length = 0; seenFinal.clear();
   els.mute.classList.remove("on");
   els.muteLabel.textContent = "음소거";
   els.unlock.hidden = true;
