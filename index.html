@@ -143,6 +143,10 @@
       <input id="code" placeholder="예: 우리만아는말1234" autocomplete="off" autocapitalize="off" spellcheck="false">
       <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 상대방은 자기 언어를 고르고 같은 암호를 넣으면 돼요.</p>
 
+      <label for="gkey">AI 번역 키 <span style="opacity:.7">(선택)</span></label>
+      <input id="gkey" type="password" placeholder="AIza…" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">키는 이 기기에만 저장되고 페이지에는 올라가지 않아요. 한 사람만 넣어도 양쪽 말이 모두 번역돼요.</p>
+
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
@@ -195,9 +199,14 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* =====================================================================
-   번역 키 (Google Cloud Translation API 키)
-   받은 키를 아래 따옴표 사이에 넣으세요. 비어 있으면 원문만 보여요.
+   번역 설정
+   - GEMINI_KEY: Google AI Studio에서 받은 Gemini API 키 (AI 번역, 추천)
+   - TRANSLATE_KEY: Google Cloud 번역 API 키 (예비용, 없어도 됨)
+   Gemini 키가 있으면 Gemini로, 없거나 실패하면 구글 번역으로 번역해요.
+   둘 다 비어 있으면 원문만 보여요.
    ===================================================================== */
+const GEMINI_KEY = "";
+const GEMINI_MODEL = "gemini-flash-lite-latest";   // 더 정확하게: "gemini-flash-latest" (조금 느림)
 const TRANSLATE_KEY = "";
 
 /* =====================================================================
@@ -218,11 +227,12 @@ const ICE_SERVERS = [
 
 /* 음성인식 언어 → 번역 언어 코드 */
 const TR_CODE = { "ko-KR": "ko", "ja-JP": "ja", "zh-TW": "zh-TW", "en-US": "en" };
+const LANG_NAME_EN = { "ko-KR": "Korean", "ja-JP": "Japanese", "zh-TW": "Traditional Chinese (Taiwan Mandarin)", "en-US": "English" };
 const LANG_NAME = { "ko-KR": "한국어", "ja-JP": "일본어", "zh-TW": "중국어(번체)", "en-US": "영어" };
 
 const $ = (id) => document.getElementById(id);
 const els = {
-  setup: $("setup"), call: $("call"), code: $("code"), lang: $("lang"), join: $("join"), err: $("err"),
+  setup: $("setup"), call: $("call"), code: $("code"), lang: $("lang"), gkey: $("gkey"), join: $("join"), err: $("err"),
   dot: $("dot"), status: $("status"), detail: $("detail"), timer: $("timer"), net: $("net"),
   chat: $("chat"), empty: $("empty"),
   mute: $("mute"), muteLabel: $("muteLabel"), cc: $("cc"), ccLabel: $("ccLabel"), hangup: $("hangup"),
@@ -233,10 +243,13 @@ let peer = null, role = null, base = null, localStream = null;
 let pendingCall = null, activeCall = null, dataConn = null;
 let redialTimer = null, clockTimer = null, slowTimer = null, statsTimer = null;
 let startedAt = 0, muted = false, wakeLock = null, active = false;
-let myLang = "ko-KR", partnerLang = null;
+let myLang = "ko-KR", partnerLang = null, partnerCanTr = false, gKey = "";
+const geminiKey = () => GEMINI_KEY || gKey;
+const hasTranslator = () => !!(geminiKey() || TRANSLATE_KEY);
 
 try {
   els.code.value = localStorage.getItem("duocall-code") || "";
+  els.gkey.value = localStorage.getItem("duocall-gkey") || "";
   const savedLang = localStorage.getItem("duocall-lang");
   if (savedLang && TR_CODE[savedLang]) els.lang.value = savedLang;
 } catch (e) {}
@@ -264,7 +277,12 @@ els.join.addEventListener("click", async () => {
   if (code.length < 4) { showError("암호를 4글자 이상 입력해 주세요."); return; }
   if (!window.Peer) { showError("연결 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요."); return; }
   if (!navigator.mediaDevices || !window.isSecureContext) { showError("이 페이지는 https:// 주소에서만 마이크를 쓸 수 있어요."); return; }
-  try { localStorage.setItem("duocall-code", code); localStorage.setItem("duocall-lang", myLang); } catch (e) {}
+  gKey = els.gkey.value.trim();
+  try {
+    localStorage.setItem("duocall-code", code);
+    localStorage.setItem("duocall-lang", myLang);
+    localStorage.setItem("duocall-gkey", gKey);
+  } catch (e) {}
 
   els.join.disabled = true;
   try {
@@ -450,7 +468,7 @@ function setupData(conn) {
   if (!conn) return;
   if (dataConn && dataConn !== conn) { try { dataConn.close(); } catch (e) {} }
   dataConn = conn;
-  conn.on("open", () => { if (dataConn === conn) sendData({ t: "hello", lang: myLang }); });
+  conn.on("open", () => { if (dataConn === conn) sendData({ t: "hello", lang: myLang, tr: hasTranslator() }); });
   conn.on("data", (msg) => { if (dataConn === conn) onData(msg); });
   conn.on("close", () => { if (dataConn === conn) dataConn = null; });
   conn.on("error", () => {});
@@ -464,20 +482,45 @@ function onData(msg) {
   if (msg.t === "hello") {
     const first = partnerLang === null;
     if (TR_CODE[msg.lang]) partnerLang = msg.lang;
+    partnerCanTr = !!msg.tr;
     if (first) {
-      sendData({ t: "hello", lang: myLang });
+      sendData({ t: "hello", lang: myLang, tr: hasTranslator() });
       addNotice(`상대방 언어: ${LANG_NAME[partnerLang] || "알 수 없음"}`);
+      if (!hasTranslator() && !partnerCanTr) addNotice("두 사람 모두 번역 키가 없어서 원문만 보여요.");
     }
     return;
   }
+  if (msg.t === "tr" && typeof msg.id === "string" && typeof msg.tr === "string") {
+    setTr("m-" + msg.id, msg.tr.slice(0, 2000), !!msg.final);
+    return;
+  }
   if (msg.t === "line" && typeof msg.id === "string") {
-    renderLine({
-      id: "p-" + msg.id,
-      mine: false,
-      text: String(msg.text || "").slice(0, 2000),
-      tr: typeof msg.tr === "string" ? msg.tr.slice(0, 2000) : null,
-      final: !!msg.final,
-    });
+    const text = String(msg.text || "").slice(0, 2000);
+    const hasTr = typeof msg.tr === "string";
+    renderLine({ id: "p-" + msg.id, mine: false, text, tr: hasTr ? msg.tr.slice(0, 2000) : null, final: !!msg.final });
+
+    // 상대에게 번역 키가 없으면 내가 대신 번역해서 양쪽에 보여줌
+    const helping = !partnerCanTr && hasTranslator() && partnerLang && !hasTr;
+    if (msg.final && !seenFinal.has(msg.id)) {
+      seenFinal.add(msg.id);
+      if (helping) {
+        const id = msg.id;
+        const job = translate(text, partnerLang, myLang, "partner");
+        job.then((tr) => { if (tr) { setTr("p-" + id, tr, true); sendData({ t: "tr", id, tr, final: true }); } });
+      }
+      remember("partner", text.slice(0, 300));
+    } else if (!msg.final && helping) {
+      const now = Date.now();
+      const gap = geminiKey() ? 2500 : 1000;
+      if (!pInterimBusy && now - lastPInterim > gap && text.length >= 4) {
+        lastPInterim = now; pInterimBusy = true;
+        const id = msg.id;
+        translate(text, partnerLang, myLang, "partner").then((tr) => {
+          pInterimBusy = false;
+          if (tr && !seenFinal.has(id)) { setTr("p-" + id, tr, false); sendData({ t: "tr", id, tr, final: false }); }
+        });
+      }
+    }
   }
 }
 
@@ -519,6 +562,17 @@ function renderLine({ id, mine, text, tr, final }) {
   if (stick || mine) scrollDown();
 }
 
+let pInterimBusy = false, lastPInterim = 0;
+function setTr(id, tr, final) {
+  const L = lines.get(id);
+  if (!L) return;
+  if (L.trFinal && !final) return;
+  if (final) L.trFinal = true;
+  const stick = nearBottom();
+  L.tr.textContent = tr;
+  if (stick) scrollDown();
+}
+
 function addNotice(text) {
   if (els.empty) { els.empty.remove(); els.empty = null; }
   const n = document.createElement("div");
@@ -531,13 +585,72 @@ function addNotice(text) {
 /* =====================================================================
    번역
    ===================================================================== */
-let keyWarned = false;
-async function translate(text, fromLang, toLang) {
+let keyWarned = false, geminiWarned = false;
+
+/* 최근 대화 기억 (AI가 문맥을 보고 더 자연스럽게 번역하도록) */
+const history = [];
+const seenFinal = new Set();
+function remember(who, text) {
+  if (!text) return;
+  history.push({ who, text });
+  if (history.length > 8) history.shift();
+}
+
+async function translate(text, fromLang, toLang, speaker = "me") {
   if (!text || !toLang || fromLang === toLang) return null;
-  if (!TRANSLATE_KEY) {
+  if (!geminiKey() && !TRANSLATE_KEY) {
     if (!keyWarned) { keyWarned = true; addNotice("번역 키가 아직 없어서 원문만 보여요."); }
     return null;
   }
+  if (geminiKey()) {
+    const r = await translateGemini(text, fromLang, toLang, speaker);
+    if (r) return r;
+  }
+  if (TRANSLATE_KEY) return translateGoogle(text, fromLang, toLang);
+  return null;
+}
+
+async function translateGemini(text, fromLang, toLang, speaker) {
+  const from = LANG_NAME_EN[fromLang], to = LANG_NAME_EN[toLang];
+  const ctx = history.slice(-6).map((h) => `${h.who === speaker ? "A" : "B"}: ${h.text}`).join("\n");
+  const system =
+    `You are a live interpreter for a casual phone call between two friends (A speaks ${from}, B speaks ${to === from ? "another language" : to}). ` +
+    `Translate A's latest utterance from ${from} into natural, spoken ${to}, the way a native speaker would actually say it to a friend. ` +
+    `Keep the speaker's tone, politeness level, emotion and slang. The text comes from speech recognition, so silently fix obvious recognition mistakes and missing punctuation. ` +
+    `Use the recent conversation only for context. Output ONLY the translation, with no quotes, notes or romanization.`;
+  const user = (ctx ? `Recent conversation:\n${ctx}\n\n` : "") + `Translate this (A, ${from}):\n${text}`;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(geminiKey())}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { temperature: 0.2, maxOutputTokens: 400 },
+        }),
+      }
+    );
+    if (!res.ok) {
+      if (!geminiWarned) {
+        geminiWarned = true;
+        addNotice(res.status === 429
+          ? "AI 번역 사용량 한도에 걸렸어요. 잠시 후 다시 돼요."
+          : `AI 번역 오류 (${res.status}) — Gemini 키 설정을 확인해 주세요.`);
+      }
+      return null;
+    }
+    const data = await res.json();
+    const parts = data && data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts;
+    const out = parts ? parts.filter((p) => !p.thought).map((p) => p.text || "").join("").trim() : "";
+    return out || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function translateGoogle(text, fromLang, toLang) {
   try {
     const res = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${encodeURIComponent(TRANSLATE_KEY)}`, {
       method: "POST",
@@ -639,9 +752,10 @@ function updateInterim(text) {
   renderLine({ id: "m-" + id, mine: true, text, tr: curTr, final: false });
   sendData({ t: "line", id, text, tr: curTr, final: false });
 
-  // 말하는 중에도 1초마다 번역을 갱신
+  // 말하는 중에도 번역을 갱신 (AI 번역은 사용량 한도 때문에 간격을 넓게)
   const now = Date.now();
-  if (partnerLang && !interimTrBusy && now - lastInterimTr > 1000) {
+  const gap = geminiKey() ? 2500 : 1000;
+  if (hasTranslator() && partnerLang && !interimTrBusy && now - lastInterimTr > gap && text.length >= 4) {
     lastInterimTr = now;
     interimTrBusy = true;
     translate(text, myLang, partnerLang).then((tr) => {
@@ -663,7 +777,9 @@ function finalizeLine(text) {
   if (!text) return;
   renderLine({ id: "m-" + id, mine: true, text, tr: prevTr, final: true });
   sendData({ t: "line", id, text, tr: prevTr, final: true });
-  translate(text, myLang, partnerLang).then((tr) => {
+  const job = hasTranslator() ? translate(text, myLang, partnerLang) : Promise.resolve(null);   // 문맥은 호출 순간 기준
+  remember("me", text);
+  job.then((tr) => {
     if (!tr) return;
     renderLine({ id: "m-" + id, mine: true, text, tr, final: true });
     sendData({ t: "line", id, text, tr, final: true });
@@ -766,7 +882,7 @@ function hangUp() {
   if (peer) { const p = peer; peer = null; p.destroy(); }
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
   els.remote.srcObject = null;
-  muted = false; partnerLang = null; keyWarned = false;
+  muted = false; partnerLang = null; partnerCanTr = false; keyWarned = false; geminiWarned = false; history.length = 0; seenFinal.clear();
   els.mute.classList.remove("on");
   els.muteLabel.textContent = "음소거";
   els.unlock.hidden = true;
