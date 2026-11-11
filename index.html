@@ -131,17 +131,22 @@
 <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>
 /* =====================================================================
-   중계 서버(TURN) 설정 — 데이터(LTE/5G)에서 연결이 안 될 때만 채우세요.
-   Cloudflare나 Metered에서 받은 정보를 아래처럼 넣으면 됩니다.
+   중계 서버(TURN) 설정
+   중계 서버 업체에서 받은 정보를 아래 [ ] 사이에 넣으세요.
    예)
-   { urls: "turn:turn.example.com:3478", username: "아이디", credential: "비밀번호" },
+   { urls: "turn:서버주소:3478", username: "아이디", credential: "비밀번호" },
+   { urls: "turn:서버주소:443?transport=tcp", username: "아이디", credential: "비밀번호" },
    ===================================================================== */
 const EXTRA_ICE_SERVERS = [
+  { urls: "stun:stun.relay.metered.ca:80" },
+  { urls: "turn:global.relay.metered.ca:80", username: "0ca38db7aba6ecc89d9a2ce8", credential: "y28xbS+Uz8As+zNK" },
+  { urls: "turn:global.relay.metered.ca:80?transport=tcp", username: "0ca38db7aba6ecc89d9a2ce8", credential: "y28xbS+Uz8As+zNK" },
+  { urls: "turn:global.relay.metered.ca:443", username: "0ca38db7aba6ecc89d9a2ce8", credential: "y28xbS+Uz8As+zNK" },
+  { urls: "turns:global.relay.metered.ca:443?transport=tcp", username: "0ca38db7aba6ecc89d9a2ce8", credential: "y28xbS+Uz8As+zNK" },
 ];
 
 const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun.cloudflare.com:3478" },
   ...EXTRA_ICE_SERVERS,
 ];
 
@@ -311,15 +316,27 @@ function watchCall(call) {
     }
   }, 15000);
 
-  call.on("stream", (stream) => {
-    if (pendingCall === call) pendingCall = null;
-    activeCall = call;
+  let live = false;       // 소리 길이 실제로 열렸는지
+  let everLive = false;
+
+  const goLive = () => {
+    if (live || activeCall !== call) return;
+    live = true; everLive = true;
     clearTimeout(slowTimer);
-    els.remote.srcObject = stream;
     els.remote.play().then(() => { els.unlock.hidden = true; }).catch(() => { els.unlock.hidden = false; });
     setLive(true);
     setStatus("통화 중", "");
-    startClock();
+    if (!clockTimer) startClock();
+  };
+
+  call.on("stream", (stream) => {
+    if (pendingCall === call) pendingCall = null;
+    activeCall = call;
+    els.remote.srcObject = stream;
+    // 상대를 찾았을 뿐, 소리 길은 아직 — 실제 연결될 때까지 기다림
+    setStatus("상대방을 찾았어요. 소리 연결 중…");
+    const s = call.peerConnection && call.peerConnection.iceConnectionState;
+    if (s === "connected" || s === "completed") goLive();
   });
 
   call.on("close", () => endCall(call, "상대방이 통화를 끊었어요"));
@@ -330,15 +347,18 @@ function watchCall(call) {
   if (pc) {
     pc.addEventListener("iceconnectionstatechange", () => {
       const s = pc.iceConnectionState;
-      if (s === "disconnected" && activeCall === call) {
+      if (s === "connected" || s === "completed") {
+        if (live) setStatus("통화 중", ""); else goLive();
+      } else if (s === "disconnected" && live && activeCall === call) {
         setStatus("연결이 불안정해요…", "잠시 기다리면 다시 이어질 수 있어요.");
-      } else if ((s === "connected" || s === "completed") && activeCall === call) {
-        setStatus("통화 중", "");
       } else if (s === "failed") {
-        const wasActive = activeCall === call;
-        endCall(call, wasActive ? "통화 연결이 끊겼어요" : "연결에 실패했어요");
-        if (!wasActive) {
-          els.detail.textContent = "데이터(LTE/5G) 환경에서는 중계 서버가 필요할 수 있어요. 둘 다 와이파이로 다시 해 보세요.";
+        const hadTurn = EXTRA_ICE_SERVERS.length > 0;
+        if (!activeCall) activeCall = call; // endCall이 정리하도록
+        endCall(call, everLive ? "통화 연결이 끊겼어요" : "소리 연결에 실패했어요");
+        if (!everLive) {
+          els.detail.textContent = hadTurn
+            ? "중계 서버 정보가 맞는지 확인해 주세요. 잠시 후 자동으로 다시 시도해요."
+            : "두 기기가 직접 연결되지 못했어요. 중계 서버(TURN)를 설정하면 해결돼요.";
         }
         call.close();
       }
