@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1720">
+<title>우리 둘만의 통화</title>
+<style>
+  :root {
+    --bg: #0f1720;
+    --card: #17212c;
+    --line: #26323f;
+    --text: #eef2f6;
+    --muted: #8b9aab;
+    --accent: #3ddc97;
+    --danger: #ff5d5d;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+  }
+  main { width: 100%; max-width: 420px; display: flex; flex-direction: column; min-height: 100%; }
+  header { padding: 36px 0 20px; }
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  .sub { color: var(--muted); font-size: 14px; margin: 0; line-height: 1.5; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 20px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+  input {
+    width: 100%; font-size: 18px; padding: 14px 16px; border-radius: 12px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--text); outline: none;
+  }
+  input:focus { border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: 13px; line-height: 1.55; margin: 12px 0 0; }
+
+  button {
+    font: inherit; border: 0; border-radius: 14px; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .primary {
+    width: 100%; margin-top: 18px; padding: 16px; font-size: 17px; font-weight: 600;
+    background: var(--accent); color: #062014;
+  }
+  .primary:active { transform: scale(0.98); }
+
+  #call { flex: 1; display: flex; flex-direction: column; align-items: center; padding-top: 30px; }
+  #call[hidden], #setup[hidden] { display: none; }
+  .orb {
+    width: 150px; height: 150px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #4af0a8, #1d8f63 70%);
+    box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.5);
+    display: grid; place-items: center; font-size: 56px;
+  }
+  .orb.waiting { background: radial-gradient(circle at 35% 30%, #5b6b7c, #2a3644 70%); animation: pulse 1.8s infinite; }
+  .orb.live { animation: none; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(139, 154, 171, 0.45); }
+    70% { box-shadow: 0 0 0 28px rgba(139, 154, 171, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(139, 154, 171, 0); }
+  }
+  #status { margin-top: 28px; font-size: 18px; font-weight: 600; text-align: center; }
+  #detail { margin-top: 8px; color: var(--muted); font-size: 14px; text-align: center; line-height: 1.5; min-height: 21px; }
+  #timer { margin-top: 14px; font-size: 32px; font-variant-numeric: tabular-nums; letter-spacing: 0.04em; }
+  #timer[hidden] { display: none; }
+
+  .controls { margin-top: auto; padding: 30px 0 40px; display: flex; gap: 28px; justify-content: center; }
+  .round {
+    width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center;
+    background: var(--card); border: 1px solid var(--line); color: var(--text);
+  }
+  .round svg { width: 28px; height: 28px; }
+  .round.on { background: var(--text); color: var(--bg); }
+  .round.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .ctl { display: flex; flex-direction: column; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+
+  #unlock { margin-top: 20px; padding: 12px 18px; background: #f5c542; color: #2a2000; font-weight: 600; }
+  #unlock[hidden] { display: none; }
+  #err { color: var(--danger); font-size: 14px; line-height: 1.5; margin-top: 14px; min-height: 1px; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px 0; margin-top: auto; }
+</style>
+</head>
+<body>
+<main>
+  <section id="setup">
+    <header>
+      <h1>우리 둘만의 통화</h1>
+      <p class="sub">둘이 정한 암호를 똑같이 입력하면 서로 연결돼요.</p>
+    </header>
+    <div class="card">
+      <label for="code">둘이 정한 암호</label>
+      <input id="code" placeholder="예: 우리만아는말1234" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 두 사람이 각자 휴대폰에서 이 페이지를 열고, 같은 암호를 넣은 뒤 아래 버튼을 누르면 돼요.</p>
+      <button id="join" class="primary">통화 시작</button>
+      <p id="err"></p>
+    </div>
+    <footer>통화 소리는 두 휴대폰 사이에서 바로 오가고 저장되지 않아요.</footer>
+  </section>
+
+  <section id="call" hidden>
+    <div id="orb" class="orb waiting">📞</div>
+    <div id="status">연결 준비 중…</div>
+    <div id="detail"></div>
+    <div id="timer" hidden>00:00</div>
+    <button id="unlock" hidden>🔊 소리가 안 들리면 여기를 누르세요</button>
+
+    <div class="controls">
+      <div class="ctl">
+        <button id="mute" class="round" aria-label="음소거">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
+        </button>
+        <span id="muteLabel">음소거</span>
+      </div>
+      <div class="ctl">
+        <button id="hangup" class="round danger" aria-label="끊기">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+        </button>
+        <span>끊기</span>
+      </div>
+    </div>
+  </section>
+
+  <audio id="remote" autoplay playsinline></audio>
+</main>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>
+/* =====================================================================
+   중계 서버(TURN) 설정 — 데이터(LTE/5G)에서 연결이 안 될 때만 채우세요.
+   Cloudflare나 Metered에서 받은 정보를 아래처럼 넣으면 됩니다.
+   예)
+   { urls: "turn:turn.example.com:3478", username: "아이디", credential: "비밀번호" },
+   ===================================================================== */
+const EXTRA_ICE_SERVERS = [
+];
+
+const ICE_SERVERS = [
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun.cloudflare.com:3478" },
+  ...EXTRA_ICE_SERVERS,
+];
+
+const $ = (id) => document.getElementById(id);
+const els = {
+  setup: $("setup"), call: $("call"), code: $("code"), join: $("join"), err: $("err"),
+  orb: $("orb"), status: $("status"), detail: $("detail"), timer: $("timer"),
+  mute: $("mute"), muteLabel: $("muteLabel"), hangup: $("hangup"),
+  unlock: $("unlock"), remote: $("remote"),
+};
+
+let peer = null;          // 내 PeerJS 연결
+let role = null;          // "a" = 먼저 들어온 사람(기다림), "b" = 나중에 들어온 사람(전화 검)
+let base = null;          // 암호로 만든 방 이름
+let localStream = null;   // 내 마이크
+let pendingCall = null;   // 연결 시도 중인 통화
+let activeCall = null;    // 연결된 통화
+let redialTimer = null;
+let clockTimer = null;
+let slowTimer = null;
+let startedAt = 0;
+let muted = false;
+let wakeLock = null;
+let active = false;       // 통화 화면에 있는지
+
+try { els.code.value = localStorage.getItem("duocall-code") || ""; } catch (e) {}
+
+function setStatus(main, detail = "") {
+  els.status.textContent = main;
+  els.detail.textContent = detail;
+}
+function setLive(live) {
+  els.orb.classList.toggle("waiting", !live);
+  els.orb.classList.toggle("live", live);
+  els.orb.textContent = live ? "🎧" : "📞";
+  els.timer.hidden = !live;
+}
+function showError(msg) { els.err.textContent = msg; }
+
+async function hashCode(text) {
+  const data = new TextEncoder().encode("duocall:" + text.trim());
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return "duocall-" + [...new Uint8Array(buf)].slice(0, 12).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/* ---------- 시작 ---------- */
+els.join.addEventListener("click", async () => {
+  showError("");
+  const code = els.code.value.trim();
+  if (code.length < 4) { showError("암호를 4글자 이상 입력해 주세요."); return; }
+  if (!window.Peer) { showError("연결 도구를 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요."); return; }
+  if (!navigator.mediaDevices || !window.isSecureContext) {
+    showError("이 페이지는 https:// 주소에서만 마이크를 쓸 수 있어요."); return;
+  }
+  try { localStorage.setItem("duocall-code", code); } catch (e) {}
+
+  els.join.disabled = true;
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      video: false,
+    });
+  } catch (e) {
+    els.join.disabled = false;
+    showError("마이크 권한이 필요해요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.");
+    return;
+  }
+  els.join.disabled = false;
+
+  // iOS에서 나중에 소리가 나오도록 사용자 터치 순간에 오디오를 깨워 둠
+  els.remote.muted = false;
+  els.remote.play().catch(() => {});
+
+  base = await hashCode(code);
+  active = true;
+  els.setup.hidden = true;
+  els.call.hidden = false;
+  setLive(false);
+  setStatus("연결 준비 중…");
+  requestWakeLock();
+  startPeer("a");
+});
+
+/* ---------- PeerJS ---------- */
+function startPeer(r) {
+  role = r;
+  const p = new Peer(`${base}-${r}`, { config: { iceServers: ICE_SERVERS }, debug: 1 });
+  peer = p;
+
+  p.on("open", () => {
+    if (peer !== p) return;
+    if (role === "a") {
+      setStatus("상대방을 기다리는 중…", "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.");
+    } else {
+      setStatus("상대방에게 연결 중…");
+      dial();
+      startRedial();
+    }
+  });
+
+  p.on("call", (call) => {
+    if (peer !== p) return;
+    // 새로 걸려온 전화가 있으면 그걸로 교체 (상대가 다시 들어온 경우)
+    if (activeCall && activeCall !== call) { const old = activeCall; activeCall = null; old.close(); }
+    if (pendingCall && pendingCall !== call) { pendingCall.close(); }
+    call.answer(localStream);
+    watchCall(call);
+  });
+
+  p.on("disconnected", () => {
+    if (peer !== p || p.destroyed) return;
+    // 연결 도우미 서버와만 끊긴 것 — 통화 자체는 계속될 수 있음
+    setTimeout(() => { if (peer === p && !p.destroyed && p.disconnected) p.reconnect(); }, 1500);
+  });
+
+  p.on("error", (err) => {
+    if (peer !== p) return;
+    const t = err && err.type;
+    if (t === "unavailable-id") {
+      if (role === "a") {           // 상대가 먼저 들어와 있음 → 내가 전화를 거는 쪽
+        p.destroy();
+        startPeer("b");
+      } else {                      // 두 자리 모두 차 있음 (이전 접속이 아직 남아 있을 수 있음)
+        p.destroy();
+        setStatus("잠시 후 다시 연결할게요…", "방금 접속했던 기록이 아직 남아 있어요. 몇 초 뒤 자동으로 다시 시도해요.");
+        setTimeout(() => { if (active && peer === p) startPeer("a"); }, 6000);
+      }
+      return;
+    }
+    if (t === "peer-unavailable") { // 상대가 아직 없음
+      pendingCall = null;
+      if (!activeCall) setStatus("상대방을 기다리는 중…", "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.");
+      return;
+    }
+    if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed") {
+      if (!activeCall) setStatus("연결 서버에 다시 접속 중…", "인터넷 연결을 확인해 주세요.");
+      setTimeout(() => { if (peer === p && !p.destroyed && p.disconnected) p.reconnect(); }, 3000);
+      return;
+    }
+    if (t === "browser-incompatible") {
+      setStatus("이 브라우저는 통화를 지원하지 않아요", "아이폰은 Safari, 안드로이드는 Chrome으로 열어 주세요.");
+      return;
+    }
+    console.warn("peer error", err);
+  });
+}
+
+function otherId() { return `${base}-${role === "a" ? "b" : "a"}`; }
+
+function dial() {
+  if (!active || !peer || peer.destroyed || !peer.open || activeCall || pendingCall) return;
+  const call = peer.call(otherId(), localStream);
+  if (call) watchCall(call);
+}
+
+function startRedial() {
+  clearInterval(redialTimer);
+  redialTimer = setInterval(() => { if (role === "b" && !activeCall) dial(); }, 4000);
+}
+
+function watchCall(call) {
+  pendingCall = call;
+  clearTimeout(slowTimer);
+  slowTimer = setTimeout(() => {
+    if (pendingCall === call && !activeCall) {
+      setStatus("연결이 오래 걸리고 있어요…", "둘 중 한 명이 데이터(LTE/5G)라면 연결이 막힐 수 있어요. 와이파이로 바꿔서 다시 해 보세요.");
+    }
+  }, 15000);
+
+  call.on("stream", (stream) => {
+    if (pendingCall === call) pendingCall = null;
+    activeCall = call;
+    clearTimeout(slowTimer);
+    els.remote.srcObject = stream;
+    els.remote.play().then(() => { els.unlock.hidden = true; }).catch(() => { els.unlock.hidden = false; });
+    setLive(true);
+    setStatus("통화 중", "");
+    startClock();
+  });
+
+  call.on("close", () => endCall(call, "상대방이 통화를 끊었어요"));
+  call.on("error", () => endCall(call, "통화 연결이 끊겼어요"));
+
+  // 실제 연결 상태 감시
+  const pc = call.peerConnection;
+  if (pc) {
+    pc.addEventListener("iceconnectionstatechange", () => {
+      const s = pc.iceConnectionState;
+      if (s === "disconnected" && activeCall === call) {
+        setStatus("연결이 불안정해요…", "잠시 기다리면 다시 이어질 수 있어요.");
+      } else if ((s === "connected" || s === "completed") && activeCall === call) {
+        setStatus("통화 중", "");
+      } else if (s === "failed") {
+        const wasActive = activeCall === call;
+        endCall(call, wasActive ? "통화 연결이 끊겼어요" : "연결에 실패했어요");
+        if (!wasActive) {
+          els.detail.textContent = "데이터(LTE/5G) 환경에서는 중계 서버가 필요할 수 있어요. 둘 다 와이파이로 다시 해 보세요.";
+        }
+        call.close();
+      }
+    });
+  }
+}
+
+function endCall(call, message) {
+  if (pendingCall === call) pendingCall = null;
+  if (activeCall !== call) return;
+  activeCall = null;
+  stopClock();
+  els.remote.srcObject = null;
+  els.unlock.hidden = true;
+  setLive(false);
+  if (!active) return;
+  setStatus(message, role === "b" ? "상대방이 다시 들어오면 자동으로 연결돼요." : "상대방이 다시 들어오면 자동으로 연결돼요.");
+}
+
+/* ---------- 시계 ---------- */
+function startClock() {
+  stopClock();
+  startedAt = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - startedAt) / 1000);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    const mm = String(m).padStart(2, "0"), ss = String(sec).padStart(2, "0");
+    els.timer.textContent = h ? `${h}:${mm}:${ss}` : `${mm}:${ss}`;
+  };
+  tick();
+  clockTimer = setInterval(tick, 1000);
+}
+function stopClock() { clearInterval(clockTimer); clockTimer = null; els.timer.textContent = "00:00"; }
+
+/* ---------- 버튼 ---------- */
+els.mute.addEventListener("click", () => {
+  muted = !muted;
+  if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
+  els.mute.classList.toggle("on", muted);
+  els.muteLabel.textContent = muted ? "음소거 해제" : "음소거";
+});
+
+els.unlock.addEventListener("click", () => {
+  els.remote.play().then(() => { els.unlock.hidden = true; }).catch(() => {});
+});
+
+els.hangup.addEventListener("click", hangUp);
+
+function hangUp() {
+  active = false;
+  clearInterval(redialTimer);
+  clearTimeout(slowTimer);
+  stopClock();
+  if (activeCall) { const c = activeCall; activeCall = null; c.close(); }
+  if (pendingCall) { const c = pendingCall; pendingCall = null; c.close(); }
+  if (peer) { const p = peer; peer = null; p.destroy(); }
+  if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+  els.remote.srcObject = null;
+  muted = false;
+  els.mute.classList.remove("on");
+  els.muteLabel.textContent = "음소거";
+  els.unlock.hidden = true;
+  releaseWakeLock();
+  els.call.hidden = true;
+  els.setup.hidden = false;
+}
+
+window.addEventListener("pagehide", () => { if (peer) peer.destroy(); });
+
+/* ---------- 화면 꺼짐 방지 ---------- */
+async function requestWakeLock() {
+  try { if ("wakeLock" in navigator) wakeLock = await navigator.wakeLock.request("screen"); } catch (e) {}
+}
+function releaseWakeLock() { try { if (wakeLock) wakeLock.release(); } catch (e) {} wakeLock = null; }
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && active) requestWakeLock();
+});
+</script>
+</body>
+</html>
