@@ -185,7 +185,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b style="color:var(--text)">v12</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v13</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -465,21 +465,40 @@ try {
   const savedLang = localStorage.getItem("duocall-lang");
   if (savedLang && TR_CODE[savedLang]) els.lang.value = savedLang;
 } catch (e) {}
-// 관리자 모드: 주소 끝에 #admin 을 붙여 한 번 열면, 이 기기에서 계속 관리자 화면이 보임
+// 관리자 모드: 링크는 모두 같음. 버전 글씨(v12)를 5번 빠르게 누르면 이 기기에서만 켜짐.
 let isAdmin = false;
-try {
-  if (location.hash === "#admin") { localStorage.setItem("duocall-admin", "1"); }
-  if (location.hash === "#guest") { localStorage.removeItem("duocall-admin"); }
-  isAdmin = localStorage.getItem("duocall-admin") === "1";
-} catch (e) {}
-// 주소창에서 #admin 흔적을 지워 친구에게 그대로 전달돼도 표가 안 나게
-try { if (location.hash === "#admin" || location.hash === "#guest") history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
-(function(){ var af = document.getElementById("adminFields"); if (af) af.style.display = isAdmin ? "block" : "none"; })();
+try { isAdmin = localStorage.getItem("duocall-admin") === "1"; } catch (e) {}
+function applyAdmin() {
+  const af = document.getElementById("adminFields");
+  if (af) af.style.display = isAdmin ? "block" : "none";
+}
+applyAdmin();
+(function(){
+  const ver = document.getElementById("verTap");
+  if (!ver) return;
+  let taps = 0, timer = null;
+  ver.addEventListener("click", () => {
+    taps++;
+    clearTimeout(timer);
+    timer = setTimeout(() => { taps = 0; }, 1500);
+    if (taps >= 5) {
+      taps = 0;
+      isAdmin = !isAdmin;
+      try { if (isAdmin) localStorage.setItem("duocall-admin", "1"); else localStorage.removeItem("duocall-admin"); } catch (e) {}
+      applyAdmin();
+      alert(isAdmin ? "관리자 화면 켜짐" : "관리자 화면 꺼짐");
+    }
+  });
+})();
 
-uiLang = (els.lang.value && I18N[els.lang.value]) ? els.lang.value : detectLang();
-if (!els.lang.value) { try { els.lang.value = uiLang; } catch (e) {} }
+// 화면 언어는 '이 기기의 언어'를 따름 (내가 말하는 언어 선택과는 별개)
+uiLang = detectLang();
+// 내가 말하는 언어: 저장된 값이 있으면 그걸, 없으면 기기 언어로
+try {
+  const sv = localStorage.getItem("duocall-lang");
+  els.lang.value = (sv && TR_CODE[sv]) ? sv : uiLang;
+} catch (e) { els.lang.value = uiLang; }
 applyI18n();
-els.lang.addEventListener("change", () => { if (I18N[els.lang.value]) { uiLang = els.lang.value; applyI18n(); } });
 
 function setStatus(main, detail = "") { els.status.textContent = main; els.detail.textContent = detail; }
 function setLive(live) {
