@@ -209,7 +209,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v16</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v17</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -490,9 +490,8 @@ function applyI18n() {
   const codeEl = document.getElementById("code"); if (codeEl) codeEl.placeholder = d.codePh;
   const emptyEl = document.getElementById("empty"); if (emptyEl) emptyEl.innerHTML = d.empty;
   const instEl = document.getElementById("installHint"); if (instEl) instEl.innerHTML = d.install;
-  // 통화 화면 라벨 갱신
-  if (typeof updateCcUi === "function") updateCcUi();
-  const ml = document.getElementById("muteLabel"); if (ml) ml.textContent = muted ? d.unmute : d.mute;
+  // 통화 화면 라벨 갱신 (자막 라벨은 updateCcUi가 담당 — 변수 준비 전 호출 금지)
+  const ml = document.getElementById("muteLabel"); if (ml) ml.textContent = (typeof muted !== "undefined" && muted) ? d.unmute : d.mute;
   if (els.vidLabel) els.vidLabel.textContent = videoOn ? d.videoOff : d.video;
   if (els.flipLabel) els.flipLabel.textContent = d.flip;
 }
