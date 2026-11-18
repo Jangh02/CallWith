@@ -209,7 +209,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v17</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v18</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -1483,26 +1483,26 @@ function remoteHasVideo() {
   return !!(remoteStream && remoteStream.getVideoTracks().some((t) => t.readyState === "live"));
 }
 
-// vMain / vPip 에 어떤 영상을 넣을지 결정해서 표시
+// vMain(큰 화면) / vPip(작은 화면) 에 어떤 영상을 넣을지 결정
 function bindVideoViews() {
-  const localOn = videoOn && camStream;
-  const remoteOn = partnerVideo && remoteHasVideo();
   const main = els.vMain, pip = els.vPip;
-  // 기본: 상대가 크게, 나는 작게. 두 번 탭하면 서로 바뀜(pipShowsRemote)
-  const bigIsRemote = !pipShowsRemote;
-  const bigStream = bigIsRemote ? (remoteOn ? remoteStream : (localOn ? camStream : null))
-                                : (localOn ? camStream : (remoteOn ? remoteStream : null));
-  const smallStream = bigIsRemote ? (localOn ? camStream : null)
-                                  : (remoteOn ? remoteStream : null);
-  setVid(main, bigStream);
-  setVid(pip, smallStream);
-  main.style.display = bigStream ? "block" : "none";
-  pip.style.display = smallStream ? "block" : "none";
-  // 거울 모드: 내 전면 카메라만 좌우 반전
-  const bigMirror = bigStream === camStream && facing === "user";
-  const smallMirror = smallStream === camStream && facing === "user";
-  main.style.transform = bigMirror ? "scaleX(-1)" : "";
-  pip.style.transform = smallMirror ? "scaleX(-1)" : "";
+  const localSrc = (videoOn && camStream) ? camStream : null;
+  const remoteSrc = remoteHasVideo() ? remoteStream : null;
+
+  // 기본: 큰 화면=상대, 작은 화면=나. 작은 화면 두 번 탭하면 서로 바뀜.
+  let bigSrc, smallSrc;
+  if (!pipShowsRemote) { bigSrc = remoteSrc; smallSrc = localSrc; }
+  else { bigSrc = localSrc; smallSrc = remoteSrc; }
+  // 큰 화면이 비었는데 작은 화면에 영상이 있으면, 그걸 큰 화면으로 올림 (같은 영상 중복 금지)
+  if (!bigSrc && smallSrc) { bigSrc = smallSrc; smallSrc = null; }
+
+  setVid(main, bigSrc);
+  setVid(pip, smallSrc);
+  main.style.display = bigSrc ? "block" : "none";
+  pip.style.display = smallSrc ? "block" : "none";
+  // 거울: 내 전면 카메라만 좌우 반전
+  main.style.transform = (bigSrc === camStream && facing === "user") ? "scaleX(-1)" : "";
+  pip.style.transform = (smallSrc === camStream && facing === "user") ? "scaleX(-1)" : "";
 }
 function setVid(el, stream) {
   if (el.srcObject !== stream) { el.srcObject = stream || null; if (stream) el.play().catch(() => {}); }
