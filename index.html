@@ -209,7 +209,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v18</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v20</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -329,6 +329,7 @@ const hasTranslator = () => !!(geminiKey() || TRANSLATE_KEY);
 let aiMode = true, partnerAi = false, remoteStream = null;
 // 영상통화 상태
 let videoOn = false, camStream = null, videoSender = null, facing = "user";
+let callStream = null, dummyTrack = null, dummyTimer = null, dummyCanvas = null;
 let pipShowsRemote = false, negotiating = false, partnerVideo = false;
 const myAi = () => aiMode && !!geminiKey();       // 이 기기가 AI 받아쓰기를 하는지
 
@@ -611,6 +612,12 @@ els.join.addEventListener("click", async () => {
   }
   els.join.disabled = false;
 
+  // 통화에는 '오디오 + 까만 영상 자리'를 함께 실어서, 나중에 영상 버튼을 눌러도 재협상이 필요 없게 함
+  dummyTrack = makeDummyVideoTrack();
+  callStream = new MediaStream();
+  localStream.getAudioTracks().forEach((tr) => callStream.addTrack(tr));
+  if (dummyTrack) callStream.addTrack(dummyTrack);
+
   ensureAudioCtx();
   els.remote.muted = false;
   els.remote.play().catch(() => {});
@@ -649,7 +656,7 @@ function startPeer(r) {
     if (peer !== p) return;
     if (activeCall && activeCall !== call) { const old = activeCall; activeCall = null; old.close(); }
     if (pendingCall && pendingCall !== call) pendingCall.close();
-    call.answer(localStream);
+    call.answer(callStream || localStream);
     watchCall(call);
   });
 
@@ -697,7 +704,7 @@ function otherId() { return `${base}-${role === "a" ? "b" : "a"}`; }
 
 function dial() {
   if (!active || !peer || peer.destroyed || !peer.open || activeCall || pendingCall) return;
-  const call = peer.call(otherId(), localStream);
+  const call = peer.call(otherId(), callStream || localStream);
   if (call) watchCall(call);
 }
 function startRedial() {
@@ -834,8 +841,6 @@ function onData(msg) {
     }
     return;
   }
-  if (msg.t === "vid-offer" && msg.sdp) { handleOffer(msg.sdp); return; }
-  if (msg.t === "vid-answer" && msg.sdp) { handleAnswer(msg.sdp); return; }
   if (msg.t === "vid") { partnerVideo = !!msg.on; updateStage(); return; }
   if (msg.t === "self" && typeof msg.id === "string") {
     // 상대 기기가 받아 적어 준 "내" 말
@@ -1479,28 +1484,38 @@ function stopClock() { clearInterval(clockTimer); clockTimer = null; els.timer.t
 /* =====================================================================
    영상통화
    ===================================================================== */
-function remoteHasVideo() {
-  return !!(remoteStream && remoteStream.getVideoTracks().some((t) => t.readyState === "live"));
+// 까만 영상 자리(더미 트랙) 만들기 — 실제 카메라는 아니라 프라이버시 걱정 없음
+function makeDummyVideoTrack() {
+  try {
+    dummyCanvas = document.createElement("canvas");
+    dummyCanvas.width = 320; dummyCanvas.height = 240;
+    const ctx = dummyCanvas.getContext("2d");
+    const draw = () => { ctx.fillStyle = "#000"; ctx.fillRect(0, 0, 320, 240); };
+    draw();
+    const st = dummyCanvas.captureStream(5);
+    const tr = st.getVideoTracks()[0];
+    // 트랙이 죽지 않게 가끔 다시 그림
+    clearInterval(dummyTimer);
+    dummyTimer = setInterval(draw, 1000);
+    return tr || null;
+  } catch (e) { return null; }
 }
 
-// vMain(큰 화면) / vPip(작은 화면) 에 어떤 영상을 넣을지 결정
+// 큰/작은 화면에 무엇을 보일지: 내 영상은 videoOn, 상대 영상은 partnerVideo 로 판단
 function bindVideoViews() {
   const main = els.vMain, pip = els.vPip;
   const localSrc = (videoOn && camStream) ? camStream : null;
-  const remoteSrc = remoteHasVideo() ? remoteStream : null;
+  const remoteSrc = (partnerVideo && remoteStream) ? remoteStream : null;
 
-  // 기본: 큰 화면=상대, 작은 화면=나. 작은 화면 두 번 탭하면 서로 바뀜.
   let bigSrc, smallSrc;
   if (!pipShowsRemote) { bigSrc = remoteSrc; smallSrc = localSrc; }
   else { bigSrc = localSrc; smallSrc = remoteSrc; }
-  // 큰 화면이 비었는데 작은 화면에 영상이 있으면, 그걸 큰 화면으로 올림 (같은 영상 중복 금지)
   if (!bigSrc && smallSrc) { bigSrc = smallSrc; smallSrc = null; }
 
   setVid(main, bigSrc);
   setVid(pip, smallSrc);
   main.style.display = bigSrc ? "block" : "none";
   pip.style.display = smallSrc ? "block" : "none";
-  // 거울: 내 전면 카메라만 좌우 반전
   main.style.transform = (bigSrc === camStream && facing === "user") ? "scaleX(-1)" : "";
   pip.style.transform = (smallSrc === camStream && facing === "user") ? "scaleX(-1)" : "";
 }
@@ -1509,28 +1524,34 @@ function setVid(el, stream) {
 }
 
 function updateStage() {
-  const on = (videoOn && camStream) || (partnerVideo && remoteHasVideo());
+  const on = (videoOn && camStream) || (partnerVideo && remoteStream);
   els.call.classList.toggle("video-on", !!on);
   bindVideoViews();
 }
 
+// 통화에 이미 영상 자리가 있으므로, 켤 때는 그 자리에 실제 카메라만 끼움 (재협상 없음)
+function findVideoSender() {
+  if (!activeCall || !activeCall.peerConnection) return null;
+  if (videoSender) return videoSender;
+  const senders = activeCall.peerConnection.getSenders();
+  videoSender = senders.find((x) => x.track && x.track.kind === "video")
+             || senders.find((x) => !x.track);   // 트랙이 비어도 영상용 sender일 수 있음
+  return videoSender;
+}
+
 async function enableVideo() {
   if (!activeCall) return;
+  let stream;
   try {
-    camStream = await navigator.mediaDevices.getUserMedia({
+    stream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false,
     });
-  } catch (e) {
-    alert(t("camDenied"));
-    return;
-  }
-  const track = camStream.getVideoTracks()[0];
-  const pc = activeCall.peerConnection;
-  try {
-    if (videoSender) await videoSender.replaceTrack(track);
-    else { videoSender = pc.addTrack(track, camStream); await renegotiate(); }
-  } catch (e) { console.warn("addTrack", e); }
+  } catch (e) { alert(t("camDenied")); return; }
+  camStream = stream;
+  const track = stream.getVideoTracks()[0];
+  const sender = findVideoSender();
+  try { if (sender && track) await sender.replaceTrack(track); } catch (e) { console.warn("replaceTrack", e); }
   videoOn = true;
   sendData({ t: "vid", on: true });
   updateStage();
@@ -1539,7 +1560,8 @@ async function enableVideo() {
 
 async function disableVideo() {
   videoOn = false;
-  try { if (videoSender) await videoSender.replaceTrack(null); } catch (e) {}
+  const sender = findVideoSender();
+  try { if (sender) await sender.replaceTrack(dummyTrack || null); } catch (e) {}
   if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
   sendData({ t: "vid", on: false });
   updateStage();
@@ -1555,45 +1577,18 @@ async function flipCamera() {
       video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
       audio: false,
     });
-  } catch (e) {
-    facing = facing === "user" ? "environment" : "user";  // 되돌림
-    return;
-  }
+  } catch (e) { facing = facing === "user" ? "environment" : "user"; return; }
   const track = newStream.getVideoTracks()[0];
-  try { if (videoSender) await videoSender.replaceTrack(track); } catch (e) {}
+  const sender = findVideoSender();
+  try { if (sender && track) await sender.replaceTrack(track); } catch (e) {}
   if (camStream) camStream.getTracks().forEach((t) => t.stop());
   camStream = newStream;
   bindVideoViews();
 }
 
-/* 간단 재협상 (오디오 통화 위에 영상 트랙 추가) — 같은 전송로를 쓰므로 SDP만 교환 */
-async function renegotiate() {
-  if (!activeCall) return;
-  const pc = activeCall.peerConnection;
-  try {
-    negotiating = true;
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    sendData({ t: "vid-offer", sdp: pc.localDescription });
-  } catch (e) { console.warn("renegotiate", e); }
-  finally { negotiating = false; }
-}
-async function handleOffer(sdp) {
-  if (!activeCall) return;
-  const pc = activeCall.peerConnection;
-  try {
-    await pc.setRemoteDescription(sdp);
-    const ans = await pc.createAnswer();
-    await pc.setLocalDescription(ans);
-    sendData({ t: "vid-answer", sdp: pc.localDescription });
-    bindVideoViews();
-  } catch (e) { console.warn("handleOffer", e); }
-}
-async function handleAnswer(sdp) {
-  if (!activeCall) return;
-  const pc = activeCall.peerConnection;
-  try { await pc.setRemoteDescription(sdp); bindVideoViews(); } catch (e) { console.warn("handleAnswer", e); }
-}
+// (옛 재협상 방식 신호는 더 이상 쓰지 않음)
+function handleOffer() {}
+function handleAnswer() {}
 
 function updateVidUi() {
   els.vid.classList.toggle("active", videoOn);
@@ -1653,6 +1648,8 @@ function hangUp() {
   if (peer) { const p = peer; peer = null; p.destroy(); }
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
   if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+  if (callStream) { try { callStream.getTracks().forEach((t) => t.stop()); } catch (e) {} callStream = null; }
+  clearInterval(dummyTimer); dummyTimer = null; dummyTrack = null;
   els.remote.srcObject = null; els.vMain.srcObject = null; els.vPip.srcObject = null;
   videoOn = false; videoSender = null; partnerVideo = false; pipShowsRemote = false; facing = "user";
   els.call.classList.remove("video-on");
