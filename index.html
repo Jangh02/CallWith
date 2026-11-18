@@ -78,6 +78,30 @@
   #timer { font-size: 16px; font-variant-numeric: tabular-nums; }
   #net { color: var(--muted); font-size: 11.5px; margin-top: 2px; }
 
+  /* 영상통화 */
+  #stageWrap { position: relative; flex: 1; min-height: 0; display: flex; }
+  #videoStage { position: absolute; inset: 0; background: #000; display: none; }
+  #call.video-on #videoStage { display: block; }
+  #vMain { width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #vPip {
+    position: absolute; right: 12px; bottom: 12px; width: 108px; height: 150px;
+    object-fit: cover; border-radius: 12px; border: 2px solid rgba(255,255,255,0.5);
+    background: #111; z-index: 3; cursor: pointer;
+  }
+  #vMain, #vPip { display: none; }
+  #call.video-on #chat {
+    position: absolute; inset: 0; z-index: 2; overflow-y: auto;
+    justify-content: flex-end;
+    background: linear-gradient(to bottom, transparent 55%, rgba(0,0,0,0.45));
+    padding-bottom: 12px; pointer-events: none;
+  }
+  #call.video-on #chat .bubble { background: rgba(23,33,44,0.82); }
+  #call.video-on #chat .mine .bubble { background: rgba(31,107,76,0.85); }
+  #call.video-on #empty { display: none; }
+  .round.vid.active { background: var(--accent); border-color: var(--accent); color: #062014; }
+  #flipCtl { display: none; }
+  #call.video-on #flipCtl { display: flex; }
+
   #chat {
     flex: 1; min-height: 0; overflow-y: auto; padding: 16px 2px;
     display: flex; flex-direction: column; gap: 10px;
@@ -185,7 +209,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v15</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v16</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -204,8 +228,14 @@
       </div>
     </div>
 
-    <div id="chat">
-      <div id="empty" class="empty"></div>
+    <div id="stageWrap">
+      <div id="videoStage">
+        <video id="vMain" autoplay playsinline muted></video>
+        <video id="vPip" autoplay playsinline muted></video>
+      </div>
+      <div id="chat">
+        <div id="empty" class="empty"></div>
+      </div>
     </div>
 
     <button id="unlock" hidden>🔊</button>
@@ -220,6 +250,18 @@
       <div class="ctl">
         <button id="cc" class="round cc" aria-label="자막">자막</button>
         <span id="ccLabel"></span>
+      </div>
+      <div class="ctl">
+        <button id="vid" class="round vid" aria-label="영상">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/></svg>
+        </button>
+        <span id="vidLabel"></span>
+      </div>
+      <div class="ctl" id="flipCtl">
+        <button id="flip" class="round" aria-label="카메라 전환">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><path d="M9 13a3 3 0 0 0 5 2m1-4a3 3 0 0 0-5-2"/><path d="M14 9l1.5 0 0-1.5M10 15l-1.5 0 0 1.5"/></svg>
+        </button>
+        <span id="flipLabel"></span>
       </div>
       <div class="ctl">
         <button id="hangup" class="round danger" aria-label="끊기">
@@ -274,6 +316,7 @@ const els = {
   chat: $("chat"), empty: $("empty"),
   mute: $("mute"), muteLabel: $("muteLabel"), cc: $("cc"), ccLabel: $("ccLabel"), hangup: $("hangup"),
   unlock: $("unlock"), remote: $("remote"),
+  vMain: $("vMain"), vPip: $("vPip"), vid: $("vid"), vidLabel: $("vidLabel"), flip: $("flip"), flipLabel: $("flipLabel"),
 };
 
 let peer = null, role = null, base = null, localStream = null;
@@ -284,6 +327,9 @@ let myLang = "ko-KR", partnerLang = null, partnerCanTr = false, gKey = "";
 const geminiKey = () => GEMINI_KEY || gKey;
 const hasTranslator = () => !!(geminiKey() || TRANSLATE_KEY);
 let aiMode = true, partnerAi = false, remoteStream = null;
+// 영상통화 상태
+let videoOn = false, camStream = null, videoSender = null, facing = "user";
+let pipShowsRemote = false, negotiating = false, partnerVideo = false;
 const myAi = () => aiMode && !!geminiKey();       // 이 기기가 AI 받아쓰기를 하는지
 
 /* =====================================================================
@@ -307,7 +353,7 @@ const I18N = {
     install: "홈 화면에 추가하면 앱처럼 쓸 수 있어요.<br>Safari 공유 버튼 → \"홈 화면에 추가\"<br><br>",
     privacy: "통화 소리는 저장되지 않아요.",
     empty: "연결되면 서로 말하는 내용이<br>여기에 원문과 번역으로 나타나요.",
-    mute: "음소거", unmute: "음소거 해제", hangup: "끊기",
+    mute: "음소거", unmute: "음소거 해제", hangup: "끊기", video: "영상", videoOff: "영상 끄기", flip: "카메라 전환",
     ccOff: "자막 꺼짐", ccReady: "자막 준비", ccOn: "자막 켜짐", ccAi: "AI 자막",
     connecting: "연결 준비 중…",
     waiting: "상대방을 기다리는 중…", waitingSub: "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.",
@@ -320,6 +366,7 @@ const I18N = {
     noKey: "두 사람 모두 번역 키가 없어서 원문만 보여요.",
     limit: "AI 사용량 한도에 걸렸어요. 무료 한도라면 결제를 켜야 계속 쓸 수 있어요.",
     micDenied: "마이크 권한이 필요해요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.",
+    camDenied: "카메라 권한이 필요해요. 브라우저 설정에서 이 사이트의 카메라를 허용해 주세요.",
   },
   "ja-JP": {
     title: "ふたりだけの通話",
@@ -338,7 +385,7 @@ const I18N = {
     install: "ホーム画面に追加するとアプリのように使えます。<br>Safariの共有ボタン →「ホーム画面に追加」<br><br>",
     privacy: "通話の音声は保存されません。",
     empty: "つながると、おたがいの話した内容が<br>ここに原文と翻訳で表示されます。",
-    mute: "ミュート", unmute: "ミュート解除", hangup: "切る",
+    mute: "ミュート", unmute: "ミュート解除", hangup: "切る", video: "ビデオ", videoOff: "ビデオ停止", flip: "カメラ切替",
     ccOff: "字幕オフ", ccReady: "字幕準備中", ccOn: "字幕オン", ccAi: "AI字幕",
     connecting: "接続の準備中…",
     waiting: "相手を待っています…", waitingSub: "相手も同じ合言葉で［通話を始める］を押すとつながります。",
@@ -351,6 +398,7 @@ const I18N = {
     noKey: "ふたりとも翻訳キーがないため、原文のみ表示されます。",
     limit: "AIの利用上限に達しました。無料枠の場合は課金を有効にすると続けて使えます。",
     micDenied: "マイクの許可が必要です。ブラウザの設定でこのサイトのマイクを許可してください。",
+    camDenied: "カメラの許可が必要です。ブラウザの設定でこのサイトのカメラを許可してください。",
   },
   "zh-TW": {
     title: "我們倆的通話",
@@ -369,7 +417,7 @@ const I18N = {
     install: "加到主畫面就能像App一樣使用。<br>Safari分享按鈕 →「加入主畫面」<br><br>",
     privacy: "通話聲音不會被儲存。",
     empty: "連線後，雙方說的話<br>會在這裡以原文與翻譯顯示。",
-    mute: "靜音", unmute: "取消靜音", hangup: "掛斷",
+    mute: "靜音", unmute: "取消靜音", hangup: "掛斷", video: "視訊", videoOff: "關閉視訊", flip: "切換鏡頭",
     ccOff: "字幕關閉", ccReady: "字幕準備中", ccOn: "字幕開啟", ccAi: "AI字幕",
     connecting: "正在準備連線…",
     waiting: "正在等待對方…", waitingSub: "對方也用相同密語按下［開始通話］就會連上。",
@@ -382,6 +430,7 @@ const I18N = {
     noKey: "兩人都沒有翻譯金鑰，只會顯示原文。",
     limit: "已達AI用量上限。若是免費額度，需開啟付費才能繼續使用。",
     micDenied: "需要麥克風權限。請在瀏覽器設定允許本網站使用麥克風。",
+    camDenied: "需要相機權限。請在瀏覽器設定允許本網站使用相機。",
   },
   "en-US": {
     title: "Our Private Call",
@@ -400,7 +449,7 @@ const I18N = {
     install: "Add to Home Screen to use it like an app.<br>Safari share button → \"Add to Home Screen\"<br><br>",
     privacy: "Call audio is never stored.",
     empty: "Once connected, what each of you says<br>appears here with its translation.",
-    mute: "Mute", unmute: "Unmute", hangup: "End",
+    mute: "Mute", unmute: "Unmute", hangup: "End", video: "Video", videoOff: "Stop video", flip: "Flip",
     ccOff: "Captions off", ccReady: "Captions ready", ccOn: "Captions on", ccAi: "AI captions",
     connecting: "Getting ready…",
     waiting: "Waiting for the other person…", waitingSub: "They connect by entering the same passphrase and tapping [Start call].",
@@ -413,6 +462,7 @@ const I18N = {
     noKey: "Neither of you has a translation key, so only the original text is shown.",
     limit: "Hit the AI usage limit. On the free tier you'll need to enable billing to continue.",
     micDenied: "Microphone permission is needed. Please allow the mic for this site in your browser settings.",
+    camDenied: "Camera permission is needed. Please allow the camera for this site in your browser settings.",
   },
 };
 let uiLang = "ko-KR";
@@ -443,6 +493,8 @@ function applyI18n() {
   // 통화 화면 라벨 갱신
   if (typeof updateCcUi === "function") updateCcUi();
   const ml = document.getElementById("muteLabel"); if (ml) ml.textContent = muted ? d.unmute : d.mute;
+  if (els.vidLabel) els.vidLabel.textContent = videoOn ? d.videoOff : d.video;
+  if (els.flipLabel) els.flipLabel.textContent = d.flip;
 }
 
 function detectLang() {
@@ -697,6 +749,8 @@ function watchCall(call) {
     activeCall = call;
     els.remote.srcObject = stream;
     remoteStream = stream;
+    bindVideoViews();
+    try { stream.onaddtrack = () => bindVideoViews(); stream.onremovetrack = () => bindVideoViews(); } catch (e) {}
     setStatus(t("found"));
     const s = call.peerConnection && call.peerConnection.iceConnectionState;
     if (s === "connected" || s === "completed") goLive();
@@ -707,6 +761,18 @@ function watchCall(call) {
 
   const pc = call.peerConnection;
   if (pc) {
+    // 상대가 나중에 켠 영상 트랙을 받아서 화면에 연결
+    pc.addEventListener("track", (e) => {
+      if (!e.track) return;
+      try {
+        if (e.streams && e.streams[0]) remoteStream = e.streams[0];
+        else if (remoteStream && !remoteStream.getTracks().includes(e.track)) remoteStream.addTrack(e.track);
+      } catch (err) {}
+      e.track.addEventListener("ended", () => bindVideoViews());
+      e.track.addEventListener("mute", () => bindVideoViews());
+      e.track.addEventListener("unmute", () => bindVideoViews());
+      bindVideoViews();
+    });
     pc.addEventListener("iceconnectionstatechange", () => {
       const s = pc.iceConnectionState;
       if (s === "connected" || s === "completed") {
@@ -769,6 +835,9 @@ function onData(msg) {
     }
     return;
   }
+  if (msg.t === "vid-offer" && msg.sdp) { handleOffer(msg.sdp); return; }
+  if (msg.t === "vid-answer" && msg.sdp) { handleAnswer(msg.sdp); return; }
+  if (msg.t === "vid") { partnerVideo = !!msg.on; updateStage(); return; }
   if (msg.t === "self" && typeof msg.id === "string") {
     // 상대 기기가 받아 적어 준 "내" 말
     renderLine({
@@ -1409,6 +1478,141 @@ function startClock() {
 function stopClock() { clearInterval(clockTimer); clockTimer = null; els.timer.textContent = "00:00"; }
 
 /* =====================================================================
+   영상통화
+   ===================================================================== */
+function remoteHasVideo() {
+  return !!(remoteStream && remoteStream.getVideoTracks().some((t) => t.readyState === "live"));
+}
+
+// vMain / vPip 에 어떤 영상을 넣을지 결정해서 표시
+function bindVideoViews() {
+  const localOn = videoOn && camStream;
+  const remoteOn = partnerVideo && remoteHasVideo();
+  const main = els.vMain, pip = els.vPip;
+  // 기본: 상대가 크게, 나는 작게. 두 번 탭하면 서로 바뀜(pipShowsRemote)
+  const bigIsRemote = !pipShowsRemote;
+  const bigStream = bigIsRemote ? (remoteOn ? remoteStream : (localOn ? camStream : null))
+                                : (localOn ? camStream : (remoteOn ? remoteStream : null));
+  const smallStream = bigIsRemote ? (localOn ? camStream : null)
+                                  : (remoteOn ? remoteStream : null);
+  setVid(main, bigStream);
+  setVid(pip, smallStream);
+  main.style.display = bigStream ? "block" : "none";
+  pip.style.display = smallStream ? "block" : "none";
+  // 거울 모드: 내 전면 카메라만 좌우 반전
+  const bigMirror = bigStream === camStream && facing === "user";
+  const smallMirror = smallStream === camStream && facing === "user";
+  main.style.transform = bigMirror ? "scaleX(-1)" : "";
+  pip.style.transform = smallMirror ? "scaleX(-1)" : "";
+}
+function setVid(el, stream) {
+  if (el.srcObject !== stream) { el.srcObject = stream || null; if (stream) el.play().catch(() => {}); }
+}
+
+function updateStage() {
+  const on = (videoOn && camStream) || (partnerVideo && remoteHasVideo());
+  els.call.classList.toggle("video-on", !!on);
+  bindVideoViews();
+}
+
+async function enableVideo() {
+  if (!activeCall) return;
+  try {
+    camStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+  } catch (e) {
+    alert(t("camDenied"));
+    return;
+  }
+  const track = camStream.getVideoTracks()[0];
+  const pc = activeCall.peerConnection;
+  try {
+    if (videoSender) await videoSender.replaceTrack(track);
+    else { videoSender = pc.addTrack(track, camStream); await renegotiate(); }
+  } catch (e) { console.warn("addTrack", e); }
+  videoOn = true;
+  sendData({ t: "vid", on: true });
+  updateStage();
+  updateVidUi();
+}
+
+async function disableVideo() {
+  videoOn = false;
+  try { if (videoSender) await videoSender.replaceTrack(null); } catch (e) {}
+  if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+  sendData({ t: "vid", on: false });
+  updateStage();
+  updateVidUi();
+}
+
+async function flipCamera() {
+  if (!videoOn) return;
+  facing = facing === "user" ? "environment" : "user";
+  let newStream;
+  try {
+    newStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: facing, width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false,
+    });
+  } catch (e) {
+    facing = facing === "user" ? "environment" : "user";  // 되돌림
+    return;
+  }
+  const track = newStream.getVideoTracks()[0];
+  try { if (videoSender) await videoSender.replaceTrack(track); } catch (e) {}
+  if (camStream) camStream.getTracks().forEach((t) => t.stop());
+  camStream = newStream;
+  bindVideoViews();
+}
+
+/* 간단 재협상 (오디오 통화 위에 영상 트랙 추가) — 같은 전송로를 쓰므로 SDP만 교환 */
+async function renegotiate() {
+  if (!activeCall) return;
+  const pc = activeCall.peerConnection;
+  try {
+    negotiating = true;
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    sendData({ t: "vid-offer", sdp: pc.localDescription });
+  } catch (e) { console.warn("renegotiate", e); }
+  finally { negotiating = false; }
+}
+async function handleOffer(sdp) {
+  if (!activeCall) return;
+  const pc = activeCall.peerConnection;
+  try {
+    await pc.setRemoteDescription(sdp);
+    const ans = await pc.createAnswer();
+    await pc.setLocalDescription(ans);
+    sendData({ t: "vid-answer", sdp: pc.localDescription });
+    bindVideoViews();
+  } catch (e) { console.warn("handleOffer", e); }
+}
+async function handleAnswer(sdp) {
+  if (!activeCall) return;
+  const pc = activeCall.peerConnection;
+  try { await pc.setRemoteDescription(sdp); bindVideoViews(); } catch (e) { console.warn("handleAnswer", e); }
+}
+
+function updateVidUi() {
+  els.vid.classList.toggle("active", videoOn);
+  const d = I18N[uiLang] || I18N["ko-KR"];
+  if (els.vidLabel) els.vidLabel.textContent = videoOn ? d.videoOff : d.video;
+}
+
+// 작은 화면 두 번 탭 → 큰 화면과 서로 바뀜
+(function () {
+  let last = 0;
+  els.vPip.addEventListener("click", () => {
+    const now = Date.now();
+    if (now - last < 350) { pipShowsRemote = !pipShowsRemote; bindVideoViews(); last = 0; }
+    else last = now;
+  });
+})();
+
+/* =====================================================================
    버튼
    ===================================================================== */
 els.mute.addEventListener("click", () => {
@@ -1431,6 +1635,12 @@ els.unlock.addEventListener("click", () => {
 
 els.hangup.addEventListener("click", hangUp);
 
+els.vid.addEventListener("click", () => {
+  if (!activeCall) return;
+  if (videoOn) disableVideo(); else enableVideo();
+});
+els.flip.addEventListener("click", flipCamera);
+
 function hangUp() {
   active = false;
   clearInterval(redialTimer);
@@ -1443,7 +1653,11 @@ function hangUp() {
   if (dataConn) { const d = dataConn; dataConn = null; try { d.close(); } catch (e) {} }
   if (peer) { const p = peer; peer = null; p.destroy(); }
   if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
-  els.remote.srcObject = null;
+  if (camStream) { camStream.getTracks().forEach((t) => t.stop()); camStream = null; }
+  els.remote.srcObject = null; els.vMain.srcObject = null; els.vPip.srcObject = null;
+  videoOn = false; videoSender = null; partnerVideo = false; pipShowsRemote = false; facing = "user";
+  els.call.classList.remove("video-on");
+  els.vid.classList.remove("active");
   muted = false; partnerLang = null; partnerCanTr = false; partnerAi = false; remoteStream = null; keyWarned = false; geminiWarned = false; lastTrError = ""; history.length = 0; seenFinal.clear();
   els.mute.classList.remove("on");
   els.muteLabel.textContent = "음소거";
