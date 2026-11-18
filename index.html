@@ -185,7 +185,7 @@
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v14</b><br>
+    <footer><b id="verTap" style="color:var(--text);cursor:pointer">v15</b><br>
       <span id="installHint" style="display:none"></span>
       <span id="t_privacy"></span></footer>
   </section>
@@ -483,10 +483,25 @@ applyAdmin();
     timer = setTimeout(() => { taps = 0; }, 1500);
     if (taps >= 5) {
       taps = 0;
-      isAdmin = !isAdmin;
-      try { if (isAdmin) localStorage.setItem("duocall-admin", "1"); else localStorage.removeItem("duocall-admin"); } catch (e) {}
-      applyAdmin();
-      alert(isAdmin ? "관리자 화면 켜짐" : "관리자 화면 꺼짐");
+      if (isAdmin) {
+        // 켜져 있으면 바로 끔 (비밀번호 불필요)
+        isAdmin = false;
+        try { localStorage.removeItem("duocall-admin"); } catch (e) {}
+        applyAdmin();
+        alert("관리자 화면 꺼짐");
+      } else {
+        // 켤 때만 비밀번호 확인
+        var pw = prompt("관리자 비밀번호");
+        if (pw === null) return;             // 취소
+        if (pw === "4414") {
+          isAdmin = true;
+          try { localStorage.setItem("duocall-admin", "1"); } catch (e) {}
+          applyAdmin();
+          alert("관리자 화면 켜짐");
+        } else {
+          alert("비밀번호가 올바르지 않아요.");
+        }
+      }
     }
   });
 })();
