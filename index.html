@@ -157,39 +157,37 @@
 <main>
   <!-- ============ 시작 화면 ============ -->
   <section id="setup">
-    <header>
-      <h1>우리 둘만의 통화</h1>
-      <p class="sub">둘이 정한 암호를 똑같이 입력하면 서로 연결돼요.<br>말하는 내용이 원문과 번역으로 함께 보여요.</p>
-    </header>
-    <div class="card">
-      <label for="lang">내가 말하는 언어</label>
+    <div class="card" style="margin-top:36px">
+      <label for="lang" id="t_langLabel">내가 말하는 언어</label>
       <select id="lang">
         <option value="ko-KR">한국어</option>
-        <option value="ja-JP">日本語 (일본어)</option>
-        <option value="zh-TW">中文(繁體) (대만 중국어)</option>
-        <option value="en-US">English (영어)</option>
+        <option value="ja-JP">日本語</option>
+        <option value="zh-TW">中文（繁體）</option>
+        <option value="en-US">English</option>
       </select>
 
-      <label for="code">둘이 정한 암호</label>
-      <input id="code" placeholder="예: 우리만아는말1234" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <p class="hint">다른 사람이 맞히기 어려운 암호로 정하세요. 상대방은 자기 언어를 고르고 같은 암호를 넣으면 돼요.</p>
+      <label for="code" id="t_codeLabel">둘이 정한 암호</label>
+      <input id="code" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <p class="hint" id="t_codeHint"></p>
 
-      <label for="stt">받아쓰기 방식</label>
-      <select id="stt">
-        <option value="ai">AI 받아쓰기 — 정확함, 말이 끝나고 1~3초 뒤 표시 (키 필요)</option>
-        <option value="fast">빠른 받아쓰기 — 말하는 동안 실시간 표시, 덜 정확함</option>
-      </select>
+      <div id="adminFields" style="display:none">
+        <label for="stt" id="t_sttLabel">받아쓰기 방식</label>
+        <select id="stt">
+          <option value="fast" id="t_sttFast"></option>
+          <option value="ai" id="t_sttAi"></option>
+        </select>
 
-      <label for="gkey">AI 번역 키 <span style="opacity:.7">(선택)</span></label>
-      <input id="gkey" type="password" placeholder="AQ.… 또는 AIza…" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <p class="hint">키는 이 기기에만 저장되고 페이지에는 올라가지 않아요. 한 사람만 넣어도 양쪽 말이 모두 번역돼요.</p>
+        <label for="gkey" id="t_keyLabel"></label>
+        <input id="gkey" type="password" placeholder="AQ.… / AIza…" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <p class="hint" id="t_keyHint"></p>
+      </div>
 
       <button id="join" class="primary">통화 시작</button>
       <p id="err"></p>
     </div>
-    <footer><b style="color:var(--text)">버전 9</b><br>
-      <span id="installHint" style="display:none">홈 화면에 추가하면 앱처럼 쓸 수 있어요.<br>Safari 공유 버튼 → "홈 화면에 추가"<br><br></span>
-      통화 소리는 저장되지 않아요.</footer>
+    <footer><b style="color:var(--text)">v12</b><br>
+      <span id="installHint" style="display:none"></span>
+      <span id="t_privacy"></span></footer>
   </section>
 
   <!-- ============ 통화 화면 ============ -->
@@ -197,7 +195,7 @@
     <div class="topbar">
       <div id="dot" class="dot waiting"></div>
       <div class="topinfo">
-        <div id="status">연결 준비 중…</div>
+        <div id="status"></div>
         <div id="detail"></div>
       </div>
       <div class="topright">
@@ -207,27 +205,27 @@
     </div>
 
     <div id="chat">
-      <div id="empty" class="empty">연결되면 서로 말하는 내용이<br>여기에 원문과 번역으로 나타나요.</div>
+      <div id="empty" class="empty"></div>
     </div>
 
-    <button id="unlock" hidden>🔊 소리가 안 들리면 여기를 누르세요</button>
+    <button id="unlock" hidden>🔊</button>
 
     <div class="controls">
       <div class="ctl">
         <button id="mute" class="round" aria-label="음소거">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v1a7 7 0 0 0 14 0v-1"/><line x1="12" y1="18" x2="12" y2="22"/></svg>
         </button>
-        <span id="muteLabel">음소거</span>
+        <span id="muteLabel"></span>
       </div>
       <div class="ctl">
         <button id="cc" class="round cc" aria-label="자막">자막</button>
-        <span id="ccLabel">자막 꺼짐</span>
+        <span id="ccLabel"></span>
       </div>
       <div class="ctl">
         <button id="hangup" class="round danger" aria-label="끊기">
           <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
         </button>
-        <span>끊기</span>
+        <span id="t_hangup"></span>
       </div>
     </div>
   </section>
@@ -288,14 +286,200 @@ const hasTranslator = () => !!(geminiKey() || TRANSLATE_KEY);
 let aiMode = true, partnerAi = false, remoteStream = null;
 const myAi = () => aiMode && !!geminiKey();       // 이 기기가 AI 받아쓰기를 하는지
 
+/* =====================================================================
+   화면 언어 (기기 언어에 맞춰 자동)
+   ===================================================================== */
+const I18N = {
+  "ko-KR": {
+    title: "우리 둘만의 통화",
+    sub: "둘이 정한 암호를 똑같이 입력하면 서로 연결돼요.<br>말하는 내용이 원문과 번역으로 함께 보여요.",
+    langLabel: "내가 말하는 언어",
+    codeLabel: "둘이 정한 암호",
+    codePh: "예: 우리만아는말1234",
+    codeHint: "다른 사람이 맞히기 어려운 암호로 정하세요. 상대방은 자기 언어를 고르고 같은 암호를 넣으면 돼요.",
+    sttLabel: "받아쓰기 방식",
+    sttFast: "빠른 받아쓰기 — 실시간, 무료",
+    sttAi: "AI 받아쓰기 — 더 정확, 번역 키 필요 (비용 발생)",
+    keyLabel: "AI 번역 키",
+    keyOpt: "(선택)",
+    keyHint: "키는 이 기기에만 저장되고 링크에는 올라가지 않아요. 한 사람만 넣어도 양쪽 말이 모두 번역돼요.",
+    join: "통화 시작",
+    install: "홈 화면에 추가하면 앱처럼 쓸 수 있어요.<br>Safari 공유 버튼 → \"홈 화면에 추가\"<br><br>",
+    privacy: "통화 소리는 저장되지 않아요.",
+    empty: "연결되면 서로 말하는 내용이<br>여기에 원문과 번역으로 나타나요.",
+    mute: "음소거", unmute: "음소거 해제", hangup: "끊기",
+    ccOff: "자막 꺼짐", ccReady: "자막 준비", ccOn: "자막 켜짐", ccAi: "AI 자막",
+    connecting: "연결 준비 중…",
+    waiting: "상대방을 기다리는 중…", waitingSub: "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.",
+    connectingPeer: "상대방에게 연결 중…",
+    found: "상대방을 찾았어요. 소리 연결 중…",
+    talking: "통화 중",
+    unstable: "연결이 불안정해요…", unstableSub: "잠시 기다리면 다시 이어질 수 있어요.",
+    ended: "상대방이 통화를 끊었어요", endedSub: "상대방이 다시 들어오면 자동으로 연결돼요.",
+    partnerLang: "상대방 언어: ",
+    noKey: "두 사람 모두 번역 키가 없어서 원문만 보여요.",
+    limit: "AI 사용량 한도에 걸렸어요. 무료 한도라면 결제를 켜야 계속 쓸 수 있어요.",
+    micDenied: "마이크 권한이 필요해요. 브라우저 설정에서 이 사이트의 마이크를 허용해 주세요.",
+  },
+  "ja-JP": {
+    title: "ふたりだけの通話",
+    sub: "決めた合言葉を同じように入力すると、おたがいにつながります。<br>話した内容が原文と翻訳で一緒に表示されます。",
+    langLabel: "自分が話す言語",
+    codeLabel: "ふたりで決めた合言葉",
+    codePh: "例: ふたりだけの合言葉1234",
+    codeHint: "他人に当てられにくい合言葉にしてください。相手は自分の言語を選び、同じ合言葉を入れればつながります。",
+    sttLabel: "文字起こしの方法",
+    sttFast: "はやい文字起こし — リアルタイム・無料",
+    sttAi: "AI文字起こし — より正確・翻訳キーが必要（料金あり）",
+    keyLabel: "AI翻訳キー",
+    keyOpt: "（任意）",
+    keyHint: "キーはこの端末にだけ保存され、リンクには載りません。どちらか一人が入れれば両方の発言が翻訳されます。",
+    join: "通話を始める",
+    install: "ホーム画面に追加するとアプリのように使えます。<br>Safariの共有ボタン →「ホーム画面に追加」<br><br>",
+    privacy: "通話の音声は保存されません。",
+    empty: "つながると、おたがいの話した内容が<br>ここに原文と翻訳で表示されます。",
+    mute: "ミュート", unmute: "ミュート解除", hangup: "切る",
+    ccOff: "字幕オフ", ccReady: "字幕準備中", ccOn: "字幕オン", ccAi: "AI字幕",
+    connecting: "接続の準備中…",
+    waiting: "相手を待っています…", waitingSub: "相手も同じ合言葉で［通話を始める］を押すとつながります。",
+    connectingPeer: "相手に接続中…",
+    found: "相手が見つかりました。音声を接続中…",
+    talking: "通話中",
+    unstable: "接続が不安定です…", unstableSub: "少し待つと再びつながることがあります。",
+    ended: "相手が通話を切りました", endedSub: "相手がもう一度入ると自動でつながります。",
+    partnerLang: "相手の言語: ",
+    noKey: "ふたりとも翻訳キーがないため、原文のみ表示されます。",
+    limit: "AIの利用上限に達しました。無料枠の場合は課金を有効にすると続けて使えます。",
+    micDenied: "マイクの許可が必要です。ブラウザの設定でこのサイトのマイクを許可してください。",
+  },
+  "zh-TW": {
+    title: "我們倆的通話",
+    sub: "輸入相同的通關密語就能互相連線。<br>說話內容會以原文與翻譯一起顯示。",
+    langLabel: "我說的語言",
+    codeLabel: "兩人約定的密語",
+    codePh: "例如：只有我們知道的密語1234",
+    codeHint: "請設定別人難以猜到的密語。對方選自己的語言、輸入相同密語即可連線。",
+    sttLabel: "聽寫方式",
+    sttFast: "快速聽寫 — 即時、免費",
+    sttAi: "AI聽寫 — 更準確、需翻譯金鑰（會產生費用）",
+    keyLabel: "AI翻譯金鑰",
+    keyOpt: "（選填）",
+    keyHint: "金鑰只存在這台裝置，不會上傳到連結。只要一人輸入，雙方的話都會被翻譯。",
+    join: "開始通話",
+    install: "加到主畫面就能像App一樣使用。<br>Safari分享按鈕 →「加入主畫面」<br><br>",
+    privacy: "通話聲音不會被儲存。",
+    empty: "連線後，雙方說的話<br>會在這裡以原文與翻譯顯示。",
+    mute: "靜音", unmute: "取消靜音", hangup: "掛斷",
+    ccOff: "字幕關閉", ccReady: "字幕準備中", ccOn: "字幕開啟", ccAi: "AI字幕",
+    connecting: "正在準備連線…",
+    waiting: "正在等待對方…", waitingSub: "對方也用相同密語按下［開始通話］就會連上。",
+    connectingPeer: "正在連線對方…",
+    found: "找到對方了，正在連接聲音…",
+    talking: "通話中",
+    unstable: "連線不穩定…", unstableSub: "稍等一下可能會重新接上。",
+    ended: "對方已掛斷通話", endedSub: "對方再次進入就會自動連線。",
+    partnerLang: "對方語言：",
+    noKey: "兩人都沒有翻譯金鑰，只會顯示原文。",
+    limit: "已達AI用量上限。若是免費額度，需開啟付費才能繼續使用。",
+    micDenied: "需要麥克風權限。請在瀏覽器設定允許本網站使用麥克風。",
+  },
+  "en-US": {
+    title: "Our Private Call",
+    sub: "Enter the same passphrase to connect.<br>What you say appears as the original text and its translation.",
+    langLabel: "The language I speak",
+    codeLabel: "Shared passphrase",
+    codePh: "e.g. our-secret-1234",
+    codeHint: "Pick a passphrase hard for others to guess. The other person picks their language and enters the same passphrase.",
+    sttLabel: "Transcription mode",
+    sttFast: "Fast — real-time, free",
+    sttAi: "AI — more accurate, needs a translation key (paid)",
+    keyLabel: "AI translation key",
+    keyOpt: "(optional)",
+    keyHint: "The key is stored only on this device and never put in the link. If one person enters it, both sides get translated.",
+    join: "Start call",
+    install: "Add to Home Screen to use it like an app.<br>Safari share button → \"Add to Home Screen\"<br><br>",
+    privacy: "Call audio is never stored.",
+    empty: "Once connected, what each of you says<br>appears here with its translation.",
+    mute: "Mute", unmute: "Unmute", hangup: "End",
+    ccOff: "Captions off", ccReady: "Captions ready", ccOn: "Captions on", ccAi: "AI captions",
+    connecting: "Getting ready…",
+    waiting: "Waiting for the other person…", waitingSub: "They connect by entering the same passphrase and tapping [Start call].",
+    connectingPeer: "Connecting to the other person…",
+    found: "Found them. Connecting audio…",
+    talking: "On call",
+    unstable: "Connection unstable…", unstableSub: "It may reconnect in a moment.",
+    ended: "The other person hung up", endedSub: "You'll reconnect automatically when they return.",
+    partnerLang: "Their language: ",
+    noKey: "Neither of you has a translation key, so only the original text is shown.",
+    limit: "Hit the AI usage limit. On the free tier you'll need to enable billing to continue.",
+    micDenied: "Microphone permission is needed. Please allow the mic for this site in your browser settings.",
+  },
+};
+let uiLang = "ko-KR";
+function t(k) { return (I18N[uiLang] && I18N[uiLang][k]) || I18N["ko-KR"][k] || k; }
+
+function applyI18n() {
+  const d = I18N[uiLang] || I18N["ko-KR"];
+  const set = (id, val, html) => { const el = document.getElementById(id); if (el) { if (html) el.innerHTML = val; else el.textContent = val; } };
+  document.documentElement.lang = uiLang.slice(0, 2);
+  set("t_title", d.title);
+  set("t_sub", d.sub, true);
+  set("t_langLabel", d.langLabel);
+  set("t_codeLabel", d.codeLabel);
+  set("t_codeHint", d.codeHint);
+  set("t_sttLabel", d.sttLabel);
+  set("t_sttFast", d.sttFast);
+  set("t_sttAi", d.sttAi);
+  set("t_keyLabel", d.keyLabel + " ");
+  const kl = document.getElementById("t_keyLabel");
+  if (kl) { const sp = document.createElement("span"); sp.style.opacity = ".7"; sp.textContent = d.keyOpt; kl.appendChild(sp); }
+  set("t_keyHint", d.keyHint);
+  const jn = document.getElementById("join"); if (jn) jn.textContent = d.join;
+  set("t_privacy", d.privacy);
+  set("t_hangup", d.hangup);
+  const codeEl = document.getElementById("code"); if (codeEl) codeEl.placeholder = d.codePh;
+  const emptyEl = document.getElementById("empty"); if (emptyEl) emptyEl.innerHTML = d.empty;
+  const instEl = document.getElementById("installHint"); if (instEl) instEl.innerHTML = d.install;
+  // 통화 화면 라벨 갱신
+  if (typeof updateCcUi === "function") updateCcUi();
+  const ml = document.getElementById("muteLabel"); if (ml) ml.textContent = muted ? d.unmute : d.mute;
+}
+
+function detectLang() {
+  const cands = (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || "ko"]);
+  for (const c of cands) {
+    const l = (c || "").toLowerCase();
+    if (l.startsWith("ko")) return "ko-KR";
+    if (l.startsWith("ja")) return "ja-JP";
+    if (l.startsWith("zh")) return "zh-TW";
+    if (l.startsWith("en")) return "en-US";
+  }
+  return "ko-KR";
+}
+
 try {
   els.code.value = localStorage.getItem("duocall-code") || "";
   els.gkey.value = localStorage.getItem("duocall-gkey") || "";
   const savedStt = localStorage.getItem("duocall-stt");
-  if (savedStt === "ai" || savedStt === "fast") els.stt.value = savedStt;
+  els.stt.value = (savedStt === "ai" || savedStt === "fast") ? savedStt : "fast";
   const savedLang = localStorage.getItem("duocall-lang");
   if (savedLang && TR_CODE[savedLang]) els.lang.value = savedLang;
 } catch (e) {}
+// 관리자 모드: 주소 끝에 #admin 을 붙여 한 번 열면, 이 기기에서 계속 관리자 화면이 보임
+let isAdmin = false;
+try {
+  if (location.hash === "#admin") { localStorage.setItem("duocall-admin", "1"); }
+  if (location.hash === "#guest") { localStorage.removeItem("duocall-admin"); }
+  isAdmin = localStorage.getItem("duocall-admin") === "1";
+} catch (e) {}
+// 주소창에서 #admin 흔적을 지워 친구에게 그대로 전달돼도 표가 안 나게
+try { if (location.hash === "#admin" || location.hash === "#guest") history.replaceState(null, "", location.pathname + location.search); } catch (e) {}
+(function(){ var af = document.getElementById("adminFields"); if (af) af.style.display = isAdmin ? "block" : "none"; })();
+
+uiLang = (els.lang.value && I18N[els.lang.value]) ? els.lang.value : detectLang();
+if (!els.lang.value) { try { els.lang.value = uiLang; } catch (e) {} }
+applyI18n();
+els.lang.addEventListener("change", () => { if (I18N[els.lang.value]) { uiLang = els.lang.value; applyI18n(); } });
 
 function setStatus(main, detail = "") { els.status.textContent = main; els.detail.textContent = detail; }
 function setLive(live) {
@@ -337,7 +521,7 @@ els.join.addEventListener("click", async () => {
     });
   } catch (e) {
     els.join.disabled = false;
-    showError("마이크 권한이 필요해요. Safari 주소창의 '가가' → 웹사이트 설정 → 마이크를 허용해 주세요.");
+    showError(t("micDenied"));
     return;
   }
   els.join.disabled = false;
@@ -352,7 +536,7 @@ els.join.addEventListener("click", async () => {
   els.setup.hidden = true;
   els.call.hidden = false;
   setLive(false);
-  setStatus("연결 준비 중…");
+  setStatus(t("connecting"));
   requestWakeLock();
   startPeer("a");
 });
@@ -368,9 +552,9 @@ function startPeer(r) {
   p.on("open", () => {
     if (peer !== p) return;
     if (role === "a") {
-      setStatus("상대방을 기다리는 중…", "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.");
+      setStatus(t("waiting"), t("waitingSub"));
     } else {
-      setStatus("상대방에게 연결 중…");
+      setStatus(t("connectingPeer"));
       dial();
       startRedial();
     }
@@ -408,7 +592,7 @@ function startPeer(r) {
     }
     if (t === "peer-unavailable") {
       pendingCall = null;
-      if (!activeCall) setStatus("상대방을 기다리는 중…", "상대방도 같은 암호로 [통화 시작]을 누르면 연결돼요.");
+      if (!activeCall) setStatus(t("waiting"), t("waitingSub"));
       return;
     }
     if (t === "network" || t === "server-error" || t === "socket-error" || t === "socket-closed") {
@@ -454,7 +638,7 @@ function watchCall(call) {
     if (chatFromEndedCall) clearChat();
     els.remote.play().then(() => { els.unlock.hidden = true; }).catch(() => { els.unlock.hidden = false; });
     setLive(true);
-    setStatus("통화 중", "");
+    setStatus(t("talking"), "");
     if (!clockTimer) startClock();
     lowLatency(call.peerConnection);
     startStats(call);
@@ -479,22 +663,22 @@ function watchCall(call) {
     activeCall = call;
     els.remote.srcObject = stream;
     remoteStream = stream;
-    setStatus("상대방을 찾았어요. 소리 연결 중…");
+    setStatus(t("found"));
     const s = call.peerConnection && call.peerConnection.iceConnectionState;
     if (s === "connected" || s === "completed") goLive();
   });
 
-  call.on("close", () => endCall(call, "상대방이 통화를 끊었어요"));
-  call.on("error", () => endCall(call, "통화 연결이 끊겼어요"));
+  call.on("close", () => endCall(call, t("ended")));
+  call.on("error", () => endCall(call, t("ended")));
 
   const pc = call.peerConnection;
   if (pc) {
     pc.addEventListener("iceconnectionstatechange", () => {
       const s = pc.iceConnectionState;
       if (s === "connected" || s === "completed") {
-        if (live) setStatus("통화 중", ""); else goLive();
+        if (live) setStatus(t("talking"), ""); else goLive();
       } else if (s === "disconnected" && live && activeCall === call) {
-        setStatus("연결이 불안정해요…", "잠시 기다리면 다시 이어질 수 있어요.");
+        setStatus(t("unstable"), t("unstableSub"));
       } else if (s === "failed") {
         if (!activeCall) activeCall = call;
         endCall(call, everLive ? "통화 연결이 끊겼어요" : "소리 연결에 실패했어요");
@@ -517,7 +701,7 @@ function endCall(call, message) {
   els.unlock.hidden = true;
   setLive(false);
   if (!active) return;
-  setStatus(message, "상대방이 다시 들어오면 자동으로 연결돼요.");
+  setStatus(message, t("endedSub"));
 }
 
 /* =====================================================================
@@ -546,8 +730,8 @@ function onData(msg) {
     updateCaptures();
     if (first) {
       sendData({ t: "hello", lang: myLang, tr: hasTranslator(), ai: myAi() });
-      addNotice(`상대방 언어: ${LANG_NAME[partnerLang] || "알 수 없음"}`);
-      if (!hasTranslator() && !partnerCanTr) addNotice("두 사람 모두 번역 키가 없어서 원문만 보여요.");
+      addNotice(t("partnerLang") + (LANG_NAME[partnerLang] || "?"));
+      if (!hasTranslator() && !partnerCanTr) addNotice(t("noKey"));
     }
     return;
   }
@@ -709,9 +893,18 @@ const GEMINI_MODELS = [GEMINI_MODEL, "gemini-flash-latest", "gemini-2.5-flash-li
 let modelIdx = 0;
 let lastTrError = "";
 
-function noteTrError(msg) {
-  if (msg && msg !== lastTrError) addNotice("⚠ " + msg);
-  lastTrError = msg;
+let errTimer = null;
+function noteTrError(msg, important) {
+  lastTrError = msg || "";
+  // 사용량 한도 등 중요한 것만 사용자에게 잠깐 알림. 나머지는 조용히 무시.
+  if (msg && important) showTransient(msg);
+}
+function showTransient(msg) {
+  const el = els.detail;
+  if (!el) return;
+  el.textContent = "⚠ " + msg;
+  clearTimeout(errTimer);
+  errTimer = setTimeout(() => { if (el.textContent.startsWith("⚠")) el.textContent = ""; }, 5000);
 }
 
 /* Gemini 호출 공통: 모델 이름이 없으면 다음 모델, 한도 초과면 한 번 재시도 */
@@ -742,7 +935,7 @@ async function geminiCall(bodyObj) {
     try { const j = await res.json(); detail = (j && j.error && j.error.message) || ""; } catch (e) {}
     if (res.status === 404 && modelIdx < GEMINI_MODELS.length - 1) { modelIdx++; continue; }
     if (res.status === 429 && !retried) { retried = true; await new Promise((r) => setTimeout(r, 1500)); continue; }
-    if (res.status === 429) noteTrError("AI 사용량 한도에 걸렸어요. 무료 한도라면 결제를 켜야 계속 쓸 수 있어요.");
+    if (res.status === 429) noteTrError(t("limit"), true);
     else noteTrError(`AI 오류 ${res.status}: ${detail.slice(0, 140)}`);
     return null;
   }
@@ -838,7 +1031,7 @@ const myTag = Math.random().toString(36).slice(2, 7);
 function updateCcUi() {
   const on = ccWanted && (recRunning || capMine || capTheirs || (partnerAi && !hasTranslator()));
   els.cc.classList.toggle("active", !!on);
-  els.ccLabel.textContent = !ccWanted ? "자막 꺼짐" : on ? (myAi() ? "AI 자막" : "자막 켜짐") : "자막 준비";
+  els.ccLabel.textContent = !ccWanted ? t("ccOff") : on ? (myAi() ? t("ccAi") : t("ccOn")) : t("ccReady");
 }
 
 function startRecognition() {
@@ -1031,7 +1224,7 @@ function createCapture(stream, who) {
     } else {
       seg.push(buf); segMs += frameMs;
       silentMs = loud ? 0 : silentMs + frameMs;
-      if (silentMs >= 750 || segMs >= 12000) {
+      if (silentMs >= 1200 || segMs >= 20000) {
         speaking = false; voiced = 0;
         const frames = seg, id = segId, speechMs = segMs - silentMs;
         seg = []; segId = null;
@@ -1074,9 +1267,8 @@ async function segmentEnd(who, id, frames, rate, speechMs) {
   const wav = encodeWav16k(frames, rate);
   const r = await transcribeGemini(wav, fromLang, toLang, who === "me" ? "me" : "partner");
   if (!r) {
-    // 실패: 말풍선에 이유 표시
-    const key = (who === "me" ? "m-" : "p-") + id;
-    renderLine({ id: key, mine: who === "me", text: "(받아쓰기 실패)", tr: lastTrError ? "⚠ " + lastTrError : null, final: true });
+    // 실패하면 🎙 말풍선을 조용히 지움 (오류 문구를 띄우지 않음)
+    dropSegment(who, id);
     return;
   }
   if (!r.text) { dropSegment(who, id); return; }
@@ -1189,7 +1381,7 @@ els.mute.addEventListener("click", () => {
   muted = !muted;
   if (localStream) localStream.getAudioTracks().forEach((t) => { t.enabled = !muted; });
   els.mute.classList.toggle("on", muted);
-  els.muteLabel.textContent = muted ? "음소거 해제" : "음소거";
+  els.muteLabel.textContent = muted ? t("unmute") : t("mute");
   updateCaptures();
 });
 
